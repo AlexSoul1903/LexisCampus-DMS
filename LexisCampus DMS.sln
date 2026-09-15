@@ -3,9 +3,73 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.8.34525.116
 MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "LexiCampusDMS.Core.Application", "LexiCampusDMS.Core.Application", "{F6625896-A286-42C8-803D-6A58A574DCC3}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "LexiCampusDMS.Core.Domain", "LexiCampusDMS.Core.Domain", "{FB3FC19F-7981-4BE7-A2CC-6EEF232B38FD}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "LexiCampusDMS.client", "LexiCampusDMS.client", "{531F148D-917F-4A15-9B75-B6D3BB4D0233}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "LexiCampusDMS.Infraestructure.Persistence", "LexiCampusDMS.Infraestructure.Persistence", "{C7BE896F-3D8D-47A9-9120-338AA98948AD}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "LexiCampusDMS.Infraestructure.Shared", "LexiCampusDMS.Infraestructure.Shared", "{BACCA520-272C-431C-A17E-1F8B11D906C5}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "LexiCampusDMS.Server", "LexiCampusDMS.Server", "{E9AABD2A-FAA1-4AE4-8084-397936DC3120}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LexisCampusDMS.Core.Domain", "LexisCampusDMS.Core.Domain\LexisCampusDMS.Core.Domain.csproj", "{56F7AC0D-E389-4A7F-9F59-08AC44E821F8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LexisCampusDMS.Application", "LexisCampusDMS.Application\LexisCampusDMS.Application.csproj", "{8FDE6195-3068-46CE-867C-AEE1AA4B7EF8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LexisCampusDMS.Infraestructure.Persistence", "LexisCampusDMS.Infraestructure.Persistence\LexisCampusDMS.Infraestructure.Persistence.csproj", "{BF5D1B09-DDB3-45D5-963B-51ECB5EF3D79}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LexisCampusDMS.Infraestructure.Shared", "LexisCampusDMS.Infraestructure.Shared\LexisCampusDMS.Infraestructure.Shared.csproj", "{FA7F196F-180B-4CEF-A584-1651B6BA28B8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LexisCampusDMS.Server", "LexisCampusDMS.Server\LexisCampusDMS.Server.csproj", "{AD571E5A-02DD-417C-9F80-50B0AF046C6D}"
+EndProject
+Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "lexiscampusdms.client", "LexisCampusDMS.client\lexiscampusdms.client.esproj", "{6D2B44A2-4847-4506-9894-DD2ACEC44C71}"
+EndProject
 Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{56F7AC0D-E389-4A7F-9F59-08AC44E821F8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{56F7AC0D-E389-4A7F-9F59-08AC44E821F8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{56F7AC0D-E389-4A7F-9F59-08AC44E821F8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{56F7AC0D-E389-4A7F-9F59-08AC44E821F8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8FDE6195-3068-46CE-867C-AEE1AA4B7EF8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8FDE6195-3068-46CE-867C-AEE1AA4B7EF8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8FDE6195-3068-46CE-867C-AEE1AA4B7EF8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8FDE6195-3068-46CE-867C-AEE1AA4B7EF8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BF5D1B09-DDB3-45D5-963B-51ECB5EF3D79}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BF5D1B09-DDB3-45D5-963B-51ECB5EF3D79}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BF5D1B09-DDB3-45D5-963B-51ECB5EF3D79}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BF5D1B09-DDB3-45D5-963B-51ECB5EF3D79}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FA7F196F-180B-4CEF-A584-1651B6BA28B8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FA7F196F-180B-4CEF-A584-1651B6BA28B8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FA7F196F-180B-4CEF-A584-1651B6BA28B8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FA7F196F-180B-4CEF-A584-1651B6BA28B8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AD571E5A-02DD-417C-9F80-50B0AF046C6D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AD571E5A-02DD-417C-9F80-50B0AF046C6D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AD571E5A-02DD-417C-9F80-50B0AF046C6D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AD571E5A-02DD-417C-9F80-50B0AF046C6D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6D2B44A2-4847-4506-9894-DD2ACEC44C71}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6D2B44A2-4847-4506-9894-DD2ACEC44C71}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6D2B44A2-4847-4506-9894-DD2ACEC44C71}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{6D2B44A2-4847-4506-9894-DD2ACEC44C71}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6D2B44A2-4847-4506-9894-DD2ACEC44C71}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6D2B44A2-4847-4506-9894-DD2ACEC44C71}.Release|Any CPU.Deploy.0 = Release|Any CPU
+	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{56F7AC0D-E389-4A7F-9F59-08AC44E821F8} = {FB3FC19F-7981-4BE7-A2CC-6EEF232B38FD}
+		{8FDE6195-3068-46CE-867C-AEE1AA4B7EF8} = {F6625896-A286-42C8-803D-6A58A574DCC3}
+		{BF5D1B09-DDB3-45D5-963B-51ECB5EF3D79} = {C7BE896F-3D8D-47A9-9120-338AA98948AD}
+		{FA7F196F-180B-4CEF-A584-1651B6BA28B8} = {BACCA520-272C-431C-A17E-1F8B11D906C5}
+		{AD571E5A-02DD-417C-9F80-50B0AF046C6D} = {E9AABD2A-FAA1-4AE4-8084-397936DC3120}
+		{6D2B44A2-4847-4506-9894-DD2ACEC44C71} = {531F148D-917F-4A15-9B75-B6D3BB4D0233}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {EC7A527F-9FED-4A00-A382-5ED7E2229169}
