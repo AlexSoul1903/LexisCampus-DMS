@@ -48,12 +48,31 @@
 
 ---
 
+### [LEX-103] Disponer de DTOs Tipados y Validaciones en Application
+- **Capa Onion**: `Application (Casos de Uso)`
+- **Fase / Sprint**: `Fase 1: Núcleo del Sistema`
+- **Estado**: `Done` ✅
+- **Prioridad**: `Media`
+- **Story Points (Fibonacci)**: `2`
+- **Asignado a**: `Backend Architect (.NET 8) — Core / API`
+- **Declaración de Historia de Usuario**:
+  > *Como Desarrollador API, quiero disponer de DTOs tipados en la capa Application, para aislar las entidades de dominio de las peticiones HTTP y respuestas REST.*
+- **Notas Técnicas & Especificaciones de Arquitectura**:
+  > *Definir DTOs inmutables en LexisCampus.Application.DTOs con validaciones FluentValidation opcionales.*
+- **Criterios de Aceptación (Definition of Done)**:
+  - [x] `UploadDocumentRequestDto`: (`Title`, `StudentRegistration`, `DocumentType`, `InitialComment`, `FileStream`, `FileName`, `ContentType`, `FileSizeBytes`)
+  - [x] `DocumentResponseDto`: (`Id`, `Title`, `StudentRegistration`, `DocumentType`, `Status`, `CurrentVersion`, `CreatedAtUtc`, `CurrentFileHash`)
+  - [x] `DocumentVersionDto`: (`VersionNumber`, `FileHash`, `FileSizeBytes`, `CreatedAtUtc`, `UploadedBy`, `MimeType`, `StoragePath`)
+  - [x] `SearchFilterDto`: (`StudentRegistration`, `DocumentType`, `FromDateUtc`, `ToDateUtc`, `PageNumber`, `PageSize`)
+  - [x] Validaciones FluentValidation con mensajes en español y registradas en DI (`UploadDocumentRequestDtoValidator`, `SearchFilterDtoValidator`)
+
+---
+
 ## 📋 Backlog (Próximas Historias)
 
 | ID | Título | Capa Onion | Prioridad | Estado |
 |---|---|---|---|---|
-| **LEX-103** | Configuración EF Core, ApplicationDbContext & Repositorios Genéricos | `Persistence` | Crítica | To Do |
-| **LEX-104** | DTOs de Documentos, Mappings & FluentValidation | `Application` | Alta | To Do |
+| **LEX-104** | Configuración EF Core, ApplicationDbContext & Repositorios Genéricos | `Persistence` | Crítica | To Do |
 | **LEX-105** | Implementación de Servicio Genérico & Servicio de Documentos | `Application` | Crítica | To Do |
 | **LEX-106** | Proveedor de Almacenamiento Seguro de Archivos (Local/Cloud) | `Shared` | Media | To Do |
 | **LEX-107** | Controladores API REST & Middleware de Excepciones Globales | `Server` | Crítica | To Do |
