@@ -88,6 +88,27 @@
 
 ---
 
+### [LEX-893] Orquestación de Entorno de Desarrollo con Docker Compose (SQL Server 2022 & MinIO S3)
+- **Capa Onion**: `Infrastructure (Shared / Persistence)`
+- **Fase / Sprint**: `Fase 2: Infraestructura y Persistencia`
+- **Estado**: `Done` ✅
+- **Prioridad**: `Media`
+- **Story Points (Fibonacci)**: `3`
+- **Asignado a**: `DevOps & Storage Lead — MinIO / SQL Server`
+- **Declaración de Historia de Usuario**:
+  > *Como Desarrollador / DevOps, quiero un archivo docker-compose.yml que orqueste contenedores para SQL Server 2022 y MinIO S3 con volúmenes persistentes y redes aisladas, para levantar todo el entorno de infraestructura local de LexisCampus DMS con un único comando reproducible en cualquier equipo.*
+- **Notas Técnicas & Especificaciones de Arquitectura**:
+  > *Archivos creados en la raíz: docker-compose.yml, .env.example, README.md y exclusión en .gitignore. SQL Server 2022 en puerto 1433 con healthcheck sqlcmd, MinIO en puertos 9000 (API) y 9001 (Consola Web).*
+- **Criterios de Aceptación (Definition of Done)**:
+  - [x] Crear docker-compose.yml con los servicios de SQL Server 2022 y MinIO S3
+  - [x] Configurar puertos estándar: 1433 (SQL Server), 9000 (MinIO API) y 9001 (MinIO Console)
+  - [x] Configurar volúmenes locales persistentes para datos de base de datos y almacenamiento de objetos (`mssql_data`, `minio_data`)
+  - [x] Configurar healthchecks para arranque controlado de dependencias
+  - [x] Crear archivo .env.example con las variables de entorno base requeridas
+  - [x] Documentar comandos de inicio y detención (docker compose up -d / down) en el README
+
+---
+
 ## 📋 Backlog (Próximas Historias)
 
 | ID | Título | Capa Onion | Prioridad | Estado |
