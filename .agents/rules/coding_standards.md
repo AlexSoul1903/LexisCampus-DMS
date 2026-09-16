@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 # Coding Standards & C# .NET 8 Best Practices
 
 ## 1. Language & Modern C# Features

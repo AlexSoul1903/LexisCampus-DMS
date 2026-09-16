@@ -117,7 +117,9 @@ Every feature or modification must comply with SOLID:
 - Always propagate `CancellationToken cancellationToken = default` on asynchronous methods.
 - Use `AsNoTracking()` in EF Core for read-only queries.
 - Keep API controllers ultra-thin.
-- Organize code with file-scoped namespaces (`namespace LexisCampusDMS...;`).
+## 🌐 6. Language & Localization Standards
+- **Code in English**: All classes, interfaces, properties, methods, variables, commits, and technical comments **MUST be in English**.
+- **User-Facing Strings & Exceptions in Spanish**: The application UI is in Spanish. Therefore, all end-user messages, validation feedback, and domain exception messages that can reach the frontend **MUST be in Spanish** (optionally accompanied by a machine-readable English `ErrorCode`).
 
 ---
 
