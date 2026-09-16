@@ -14,4 +14,11 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\LexisCampusDMS.Application\LexisCampusDMS.Application.csproj" />
+    <ProjectReference Include="..\LexisCampusDMS.Infraestructure.Persistence\LexisCampusDMS.Infraestructure.Persistence.csproj" />
+    <ProjectReference Include="..\LexisCampusDMS.Infraestructure.Shared\LexisCampusDMS.Infraestructure.Shared.csproj" />
+    <ProjectReference Include="..\LexisCampusDMS.Core.Domain\LexisCampusDMS.Core.Domain.csproj" />
+  </ItemGroup>
+
 </Project>
