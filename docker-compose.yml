@@ -28,7 +28,7 @@ services:
   # MinIO (S3 Compatible Object Storage for Documents & Versions)
   # ============================================================================
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     container_name: lexiscampus-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"

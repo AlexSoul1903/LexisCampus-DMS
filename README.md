@@ -26,8 +26,8 @@ El repositorio incluye un archivo [docker-compose.yml](file:///docker-compose.ym
 | Servicio | Imagen | Puerto Host : Contenedor | Propósito |
 |---|---|---|---|
 | **`sqlserver`** | `mcr.microsoft.com/mssql/server:2022-latest` | `1433:1433` | Base de datos relacional SQL Server 2022 |
-| **`minio`** (API) | `minio/minio:latest` | `9000:9000` | API S3 para subida y descarga de archivos |
-| **`minio`** (Console) | `minio/minio:latest` | `9001:9001` | Consola Web administrativa de MinIO |
+| **`minio`** (API) | `quay.io/minio/minio:latest` | `9000:9000` | API S3 para subida y descarga de archivos |
+| **`minio`** (Console) | `quay.io/minio/minio:latest` | `9001:9001` | Consola Web administrativa de MinIO |
 
 ---
 
