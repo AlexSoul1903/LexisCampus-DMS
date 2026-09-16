@@ -1,15 +1,21 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using LexisCampusDMS.Infraestructure.Persistence.Contexts;
 
-namespace LexisCampusDMS.Infraestructure.Persistence
+namespace LexisCampusDMS.Infraestructure.Persistence;
+
+public static class ServiceRegistration
 {
-    public static class ServiceRegistration
+    public static IServiceCollection AddPersistenceInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        public static IServiceCollection AddPersistenceInfrastructure(this IServiceCollection services, IConfiguration configuration)
-        {
-            // Register DbContext, Repositories, UnitOfWork, etc. here
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
 
-            return services;
-        }
+        services.AddDbContext<ApplicationDbContext>(options =>
+            options.UseSqlServer(
+                connectionString,
+                b => b.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName)));
+
+        return services;
     }
 }

@@ -68,12 +68,33 @@
 
 ---
 
+### [LEX-201] Configurar SQL Server con Entity Framework Core 8
+- **Capa Onion**: `Infrastructure (Persistence)`
+- **Fase / Sprint**: `Fase 2: Infraestructura y Persistencia`
+- **Estado**: `Done` ✅
+- **Prioridad**: `Crítica`
+- **Story Points (Fibonacci)**: `5`
+- **Asignado a**: `DevOps & Storage Lead — MinIO / SQL Server`
+- **Declaración de Historia de Usuario**:
+  > *Como DevOps / DBA, quiero implementar ApplicationDbContext y configurar Entity Framework Core con SQL Server 2022, para asegurar persistencia relacional optimizada con índices de búsqueda rápida.*
+- **Notas Técnicas & Especificaciones de Arquitectura**:
+  > *Proyecto: LexisCampus.Infrastructure (LexisCampusDMS.Infraestructure.Persistence). Conexión SQL Server 2022 en appsettings.json. Mapeo explícito con IEntityTypeConfiguration<T>.*
+- **Criterios de Aceptación (Definition of Done)**:
+  - [x] Configurar `ApplicationDbContext` con `DbSets` para `Document`, `DocumentVersion` y `AuditLog`
+  - [x] Configurar Fluent API para relaciones (1 `Document` -> N `DocumentVersion` en cascada, 1 `Document` -> N `AuditLog` en SetNull)
+  - [x] Crear índices non-clustered para búsquedas de alto rendimiento: `StudentRegistration`, `DocumentType`, `CreatedAtUtc`, `(DocumentId, VersionNumber)` y `FileHashSha256`
+  - [x] Generar migración inicial vía CLI: `dotnet ef migrations add InitialCreate`
+  - [x] Conexión SQL Server 2022 en `appsettings.json` y `appsettings.Development.json`
+
+---
+
 ## 📋 Backlog (Próximas Historias)
 
 | ID | Título | Capa Onion | Prioridad | Estado |
 |---|---|---|---|---|
-| **LEX-104** | Configuración EF Core, ApplicationDbContext & Repositorios Genéricos | `Persistence` | Crítica | To Do |
-| **LEX-105** | Implementación de Servicio Genérico & Servicio de Documentos | `Application` | Crítica | To Do |
-| **LEX-106** | Proveedor de Almacenamiento Seguro de Archivos (Local/Cloud) | `Shared` | Media | To Do |
-| **LEX-107** | Controladores API REST & Middleware de Excepciones Globales | `Server` | Crítica | To Do |
-| **LEX-108** | Autenticación JWT, Refresh Tokens & Políticas de Autorización | `Server / Persistence` | Crítica | To Do |
+| **LEX-202** | Implementación de Repositorio Genérico & IDocumentRepository | `Persistence` | Crítica | To Do |
+| **LEX-203** | Implementación de UnitOfWork | `Persistence` | Alta | To Do |
+| **LEX-204** | Implementación de StorageService (Local / MinIO) & HashService | `Shared` | Media | To Do |
+| **LEX-205** | Servicio de Documentos & Orquestación de Casos de Uso | `Application` | Crítica | To Do |
+| **LEX-206** | Controladores API REST & Middleware de Excepciones Globales | `Server` | Crítica | To Do |
+| **LEX-207** | Autenticación JWT, Refresh Tokens & Políticas de Autorización | `Server / Persistence` | Crítica | To Do |
