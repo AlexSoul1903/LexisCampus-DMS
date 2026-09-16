@@ -123,6 +123,13 @@ Every feature or modification must comply with SOLID:
 
 ---
 
+## 🧭 7. Kanban Workflow & Engineering Principles
+- **Kanban as a Guide, Not a Literal Template**: User stories and acceptance criteria define the functional intent ("what" to build). Do not copy-paste names or signatures blindly. Apply professional software engineering judgment to refine, adapt, and improve the design to fit Onion Architecture, SOLID, and .NET conventions.
+- **Proactive Conflict Detection**: Before creating or modifying code for any task, thoroughly search the existing codebase (`grep_search`, `list_dir`) for existing implementations, duplicate interfaces, or overlapping responsibilities across layers.
+- **Strict English Translation**: Always translate any Spanish method names, enum members, or entities found in Kanban cards into idiomatic English code (e.g. `RegistrarDocumento` -> `RegisterDocumentAsync`, `RecordNotas` -> `Transcript`).
+
+---
+
 ## 📚 Detailed Rules Reference
 For exhaustive details, see:
 - [Architecture Rules](.agents/rules/architecture.md)

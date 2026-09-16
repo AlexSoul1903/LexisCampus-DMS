@@ -49,3 +49,18 @@ trigger: always_on
   - **Transient**: Stateless lightweight helpers or validators (`AddTransient`).
   - **Singleton**: Caches, thread-safe configuration objects (`AddSingleton`).
 - Encapsulate registrations in each layer's `ServiceRegistration.cs` file using extension methods on `IServiceCollection`.
+
+---
+
+## 6. Language & Localization Standards
+- **Code & Syntax**: Written strictly in **English** (class names, interfaces, methods, DTO properties, parameters, comments).
+- **User-Facing & Exception Messages**: Written strictly in **Spanish**. Because the LexisCampus DMS frontend is in Spanish, all domain exception messages, FluentValidation messages, and user-facing API error feedback must be localized in clear, professional Spanish.
+- **Error Codes**: Machine-readable error codes must remain in UPPERCASE_SNAKE_CASE English (e.g. `ErrorCode = "DOCUMENT_NOT_FOUND"`, `ErrorCode = "INVALID_DOCUMENT_STATE"`), paired with the Spanish message.
+
+---
+
+## 7. Kanban Workflow & Engineering Judgment
+- **Kanban as a Functional Guide**: The Kanban cards define user intent and business needs ("what" to build). Never blindly copy-paste names or signatures from cards if they conflict with Clean Architecture, SOLID principles, or language standards.
+- **Proactive Conflict Checking**: Before implementing any card, search the existing layers to prevent redundant interfaces, duplicate classes, or architectural boundary violations.
+- **Continuous Improvement**: Improve, adapt, and refine signatures and designs along the way to maintain a clean, maintainable, and high-performance .NET 8 codebase.
+

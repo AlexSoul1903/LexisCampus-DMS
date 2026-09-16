@@ -2,6 +2,9 @@
 
 ## 📌 Sprint 1: Fase 1 - Núcleo del Sistema (Domain & Clean Architecture)
 
+> [!NOTE]
+> **Kanban as a Guide**: User stories and acceptance criteria define the functional requirements ("what" to build). Code must always be adapted, improved, and checked for conflicts across layers, adhering strictly to 100% English code (with only user-facing error messages in Spanish).
+
 ---
 
 ### [LEX-101] Modelar Entidades del Dominio Núcleo
@@ -19,9 +22,29 @@
   - [x] Crear entidad `Document` (`Id`, `Title`, `StudentRegistration` / `Matrícula`, `DocumentType`, `Status`, `CurrentVersion`, `CreatedAt`, `CreatedBy`, `Versions`, `AuditLogs`).
   - [x] Crear entidad `DocumentVersion` (`Id`, `DocumentId`, `VersionNumber`, `StoragePath`, `FileHashSha256`, `FileSize`, `MimeType`, `CreatedAt`, `CreatedByUserId`).
   - [x] Crear entidad `AuditLog` (`Id`, `UserId`, `Action`, `DocumentId`, `TimestampUtc`, `IpAddress`, `Details`).
-  - [x] Definir enums: `DocumentType` (RecordNotas, ActaNacimiento, Convalidacion), `DocumentStatus`, `UserRole`, `AuditAction`.
+  - [x] Definir enums: `DocumentType` (Transcript, BirthCertificate, Accreditation, StudyCertificate, Degree, Other), `DocumentStatus`, `UserRole`, `AuditAction`.
   - [x] Implementar excepciones de dominio específicas (`InvalidDocumentStateException`, `FileHashMismatchException`, `DomainValidationException`, `EntityNotFoundException`).
   - [x] Convención de Idiomas: Código en Inglés, Excepciones y Mensajes de Usuario en Español con `ErrorCode`.
+
+---
+
+### [LEX-102] Definir Contratos e Interfaces en Application
+- **Capa Onion**: `Application (Casos de Uso)`
+- **Fase / Sprint**: `Fase 1: Núcleo del Sistema`
+- **Estado**: `Done` ✅
+- **Prioridad**: `Alta`
+- **Story Points (Fibonacci)**: `3`
+- **Asignado a**: `Backend Architect (.NET 8) — Core / API`
+- **Declaración de Historia de Usuario**:
+  > *Como Desarrollador Backend, quiero definir las interfaces para repositorios, almacenamiento de streams y cálculo de hash en LexisCampus.Application, para establecer los contratos que implementará la infraestructura desacoplada.*
+- **Notas Técnicas & Especificaciones de Arquitectura**:
+  > *Proyecto: LexisCampus.Application. Interfaces puras. Solo referencia a LexisCampus.Domain.*
+- **Criterios de Aceptación (Definition of Done)**:
+  - [x] `IStorageService`: `UploadFileAsync(Stream fileStream, string storagePath, string contentType, CancellationToken cancellationToken = default)`
+  - [x] `IStorageService`: `GetFileStreamAsync(string storagePath, CancellationToken cancellationToken = default)` y `DeleteFileAsync(string storagePath, CancellationToken cancellationToken = default)`
+  - [x] `IDocumentRepository` (en `Core.Domain.Interfaces`): `RegisterDocumentAsync`, `GetByStudentRegistrationAsync`, `GetVersionsAsync`, `GetWithDetailsAsync`, `GetByStatusAsync` (heredando de `IGenericRepository<Document, Guid>`)
+  - [x] `IHashService`: `ComputeSha256(Stream fileStream)` devolviendo el hash hexadecimal
+  - [x] `ICurrentUserService`: `UserId`, `Role`, `IpAddress`, `IsAuthenticated` de la solicitud actual
 
 ---
 
@@ -29,7 +52,6 @@
 
 | ID | Título | Capa Onion | Prioridad | Estado |
 |---|---|---|---|---|
-| **LEX-102** | Contratos de Repositorio & Unit of Work en Dominio | `Domain` | Alta | To Do |
 | **LEX-103** | Configuración EF Core, ApplicationDbContext & Repositorios Genéricos | `Persistence` | Crítica | To Do |
 | **LEX-104** | DTOs de Documentos, Mappings & FluentValidation | `Application` | Alta | To Do |
 | **LEX-105** | Implementación de Servicio Genérico & Servicio de Documentos | `Application` | Crítica | To Do |
