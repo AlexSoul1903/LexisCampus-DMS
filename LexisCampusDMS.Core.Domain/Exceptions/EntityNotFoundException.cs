@@ -1,8 +1,8 @@
 namespace LexisCampusDMS.Core.Domain.Exceptions;
 
-public class EntityNotFoundException : Exception
+public class EntityNotFoundException : DomainException
 {
-    public string ErrorCode { get; } = "ENTITY_NOT_FOUND";
+    public override string ErrorCode { get; protected set; } = "ENTITY_NOT_FOUND";
     public string EntityName { get; }
     public object Key { get; }
 

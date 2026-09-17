@@ -1,8 +1,8 @@
 namespace LexisCampusDMS.Core.Domain.Exceptions;
 
-public class DomainValidationException : Exception
+public class DomainValidationException : DomainException
 {
-    public string ErrorCode { get; } = "DOMAIN_VALIDATION_ERROR";
+    public override string ErrorCode { get; protected set; } = "DOMAIN_VALIDATION_ERROR";
     public IReadOnlyList<string> Errors { get; }
 
     public DomainValidationException(string message) : base(message)

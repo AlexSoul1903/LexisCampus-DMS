@@ -2,9 +2,9 @@ using LexisCampusDMS.Core.Domain.Enums;
 
 namespace LexisCampusDMS.Core.Domain.Exceptions;
 
-public class InvalidDocumentStateException : Exception
+public class InvalidDocumentStateException : DomainException
 {
-    public string ErrorCode { get; } = "INVALID_DOCUMENT_STATE";
+    public override string ErrorCode { get; protected set; } = "INVALID_DOCUMENT_STATE";
     public DocumentStatus CurrentStatus { get; }
     public DocumentStatus TargetStatus { get; }
 

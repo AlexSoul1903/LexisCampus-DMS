@@ -1,8 +1,8 @@
 namespace LexisCampusDMS.Core.Domain.Exceptions;
 
-public class FileHashMismatchException : Exception
+public class FileHashMismatchException : DomainException
 {
-    public string ErrorCode { get; } = "FILE_HASH_MISMATCH";
+    public override string ErrorCode { get; protected set; } = "FILE_HASH_MISMATCH";
     public string ExpectedHash { get; }
     public string ActualHash { get; }
 

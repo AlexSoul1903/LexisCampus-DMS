@@ -109,13 +109,32 @@
 
 ---
 
+### [LEX-202] Implementar Almacenamiento de Objetos con MinIO / S3
+- **Capa Onion**: `Infrastructure (Shared / Adaptadores)`
+- **Fase / Sprint**: `Fase 2: Infraestructura y Persistencia`
+- **Estado**: `Done` ✅
+- **Prioridad**: `Alta`
+- **Story Points (Fibonacci)**: `5`
+- **Asignado a**: `DevOps & Storage Lead — MinIO / SQL Server`
+- **Declaración de Historia de Usuario**:
+  > *Como Ingeniero de Almacenamiento, quiero implementar MinioStorageService conectando al bucket "lexiscampus-docs", para almacenar los archivos binarios de forma escalable con rutas jerárquicas seguras.*
+- **Notas Técnicas & Especificaciones de Arquitectura**:
+  > *SDK Minio 6.0.4 y Polly 8.4.2 en LexisCampusDMS.Infraestructure.Shared. Configuración en appsettings.json/Development bajo sección 'Minio'. Bucket 'lexiscampus-docs' provisionado. Tests unitarios e integración en LexisCampusDMS.UnitTests.*
+- **Criterios de Aceptación (Definition of Done)**:
+  - [x] Configurar contenedor Docker de MinIO y provisionar bucket institucional "lexiscampus-docs"
+  - [x] Instalar SDK oficial MinIO en LexisCampus.Infrastructure (`LexisCampusDMS.Infraestructure.Shared`)
+  - [x] Implementar MinioStorageService respetando el contrato IStorageService (`UploadFileAsync`, `GetFileStreamAsync`, `DeleteFileAsync`, `ExistsAsync`)
+  - [x] Estructurar la jerarquía de rutas: `/{matricula}/{anio}/{hash}_{archivo}.pdf` con sanitización contra path traversal (`StoragePathBuilder`)
+  - [x] Manejo resiliente de excepciones de conexión y reintentos exponenciales con `Polly` (200ms, 400ms, 800ms)
+
+---
+
 ## 📋 Backlog (Próximas Historias)
 
 | ID | Título | Capa Onion | Prioridad | Estado |
 |---|---|---|---|---|
-| **LEX-202** | Implementación de Repositorio Genérico & IDocumentRepository | `Persistence` | Crítica | To Do |
-| **LEX-203** | Implementación de UnitOfWork | `Persistence` | Alta | To Do |
-| **LEX-204** | Implementación de StorageService (Local / MinIO) & HashService | `Shared` | Media | To Do |
+| **LEX-203** | Implementación de Repositorio Genérico & IDocumentRepository | `Persistence` | Crítica | To Do |
+| **LEX-204** | Implementación de UnitOfWork | `Persistence` | Alta | To Do |
 | **LEX-205** | Servicio de Documentos & Orquestación de Casos de Uso | `Application` | Crítica | To Do |
 | **LEX-206** | Controladores API REST & Middleware de Excepciones Globales | `Server` | Crítica | To Do |
 | **LEX-207** | Autenticación JWT, Refresh Tokens & Políticas de Autorización | `Server / Persistence` | Crítica | To Do |
