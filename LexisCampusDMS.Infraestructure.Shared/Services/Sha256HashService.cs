@@ -53,4 +53,13 @@ public class Sha256HashService : IHashService
         var actualHash = ComputeSha256(fileStream);
         return string.Equals(actualHash, expectedHash.Trim(), StringComparison.OrdinalIgnoreCase);
     }
+
+    public async Task<bool> VerifySha256Async(Stream fileStream, string expectedHash, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(expectedHash))
+            return false;
+
+        var actualHash = await ComputeSha256Async(fileStream, cancellationToken);
+        return string.Equals(actualHash, expectedHash.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
 }

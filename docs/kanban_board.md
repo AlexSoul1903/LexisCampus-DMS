@@ -129,12 +129,31 @@
 
 ---
 
+### [LEX-203] Implementar Servicio Criptográfico de Hashing SHA-256
+- **Capa Onion**: `Infrastructure (Shared / Adaptadores)`
+- **Fase / Sprint**: `Fase 2: Infraestructura y Persistencia`
+- **Estado**: `Done` ✅
+- **Prioridad**: `Alta`
+- **Story Points (Fibonacci)**: `3`
+- **Asignado a**: `Security & Cert Specialist — Crypto / QR`
+- **Declaración de Historia de Usuario**:
+  > *Como Oficial de Seguridad, quiero un servicio HashService que calcule el digest SHA-256 de cada stream binario, para certificar la inmutabilidad y detectar alteraciones en los expedientes.*
+- **Notas Técnicas & Especificaciones de Arquitectura**:
+  > *Garantizar que el stream de entrada mantenga su Position = 0 si requiere ser reutilizado para el upload a MinIO. Implementación en Sha256HashService respetando contrato IHashService.*
+- **Criterios de Aceptación (Definition of Done)**:
+  - [x] Implementar HashService utilizando `System.Security.Cryptography.SHA256` (`Sha256HashService`)
+  - [x] Cálculo no bloqueante sobre Stream sin cargar el archivo completo en memoria RAM (`ComputeSha256Async` con stream buffering y preservación de `Position = 0`)
+  - [x] Retorno de hash en formato Hexadecimal en minúsculas estándar (64 caracteres) (`Convert.ToHexString().ToLowerInvariant()`)
+  - [x] Método de verificación que compare stream descargado vs hash persistido en base de datos (`VerifySha256` y `VerifySha256Async`)
+
+---
+
 ## 📋 Backlog (Próximas Historias)
 
 | ID | Título | Capa Onion | Prioridad | Estado |
 |---|---|---|---|---|
-| **LEX-203** | Implementación de Repositorio Genérico & IDocumentRepository | `Persistence` | Crítica | To Do |
-| **LEX-204** | Implementación de UnitOfWork | `Persistence` | Alta | To Do |
-| **LEX-205** | Servicio de Documentos & Orquestación de Casos de Uso | `Application` | Crítica | To Do |
-| **LEX-206** | Controladores API REST & Middleware de Excepciones Globales | `Server` | Crítica | To Do |
-| **LEX-207** | Autenticación JWT, Refresh Tokens & Políticas de Autorización | `Server / Persistence` | Crítica | To Do |
+| **LEX-204** | Implementación de Repositorio Genérico & IDocumentRepository | `Persistence` | Crítica | To Do |
+| **LEX-205** | Implementación de UnitOfWork | `Persistence` | Alta | To Do |
+| **LEX-206** | Servicio de Documentos & Orquestación de Casos de Uso | `Application` | Crítica | To Do |
+| **LEX-207** | Controladores API REST & Middleware de Excepciones Globales | `Server` | Crítica | To Do |
+| **LEX-208** | Autenticación JWT, Refresh Tokens & Políticas de Autorización | `Server / Persistence` | Crítica | To Do |
