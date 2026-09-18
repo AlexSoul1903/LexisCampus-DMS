@@ -27,6 +27,19 @@ public class DocumentRepository : GenericRepository<Document, Guid>, IDocumentRe
             .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
     }
 
+    public async Task<Document?> GetByRegistrationAndTypeWithDetailsAsync(
+        string studentRegistration, 
+        DocumentType documentType, 
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(studentRegistration, nameof(studentRegistration));
+
+        return await _dbSet
+            .Include(d => d.Versions.OrderByDescending(v => v.VersionNumber))
+            .Include(d => d.AuditLogs.OrderByDescending(a => a.TimestampUtc))
+            .FirstOrDefaultAsync(d => d.StudentRegistration == studentRegistration.Trim() && d.DocumentType == documentType, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Document>> GetByStudentRegistrationAsync(
         string studentRegistration, 
         CancellationToken cancellationToken = default)

@@ -168,13 +168,30 @@
   - [x] Crear registro transaccional en SQL Server (`Document` + `DocumentVersion` número 1) vía `IUnitOfWork`
   - [x] Registrar entrada en `AuditLog` con acción "DOCUMENT_UPLOADED" (`AuditAction.DocumentUploaded`), UserId e IP de la petición
 
+### [LEX-302] Caso de Uso: Actualizar / Rectificar Documento (Nueva Versión)
+- **Capa Onion**: `Application (Casos de Uso) / Persistence`
+- **Fase / Sprint**: `Fase 3: Casos de Uso`
+- **Estado**: `Done` ✅
+- **Prioridad**: `Alta`
+- **Story Points (Fibonacci)**: `5`
+- **Asignado a**: `Backend Architect (.NET 8) — Core / API`
+- **Declaración de Historia de Usuario**:
+  > *Como Supervisor de Registro, quiero actualizar un documento existente cargando un archivo rectificado, para generar una nueva versión (v2, v3) conservando íntegro el historial previo.*
+- **Notas Técnicas & Especificaciones de Arquitectura**:
+  > *Garantizar inmutabilidad: ninguna fila previa de DocumentVersion se modifica ni se borra jamás. Índice único (DocumentId, VersionNumber) en base de datos para concurrencia segura. Transacción atómica con rollback y compensación de borrado en MinIO ante fallos de persistencia.*
+- **Criterios de Aceptación (Definition of Done)**:
+  - [x] Validar existencia previa del Documento por ID o matrícula + tipo (`GetWithDetailsAsync` y `GetByRegistrationAndTypeWithDetailsAsync`)
+  - [x] Incrementar VersionNumber de forma segura y concurrente (ej. v1 -> v2) respaldado por índice único en SQL Server
+  - [x] Subir nuevo binario a MinIO y registrar DocumentVersion enlazada con compensación en caso de fallo
+  - [x] Actualizar puntero CurrentVersion en la entidad Document
+  - [x] Registrar evento en AuditLog "DOCUMENT_RECTIFIED" (`AuditAction.DocumentRectified`) con motivo de cambio obligatorio
+
 ---
 
 ## 📋 Backlog (Próximas Historias)
 
 | ID | Título | Capa Onion | Prioridad | Estado |
 |---|---|---|---|---|
-| **LEX-302** | Caso de Uso: Carga de Nuevas Versiones de Documento (v2+) | `Application` | Alta | To Do |
 | **LEX-303** | Caso de Uso: Búsqueda y Filtrado Paginado de Expedientes | `Application` | Alta | To Do |
 | **LEX-304** | Controladores API REST & Middleware de Excepciones Globales (RFC 7807) | `Server` | Crítica | To Do |
 | **LEX-305** | Autenticación JWT, Refresh Tokens & Políticas de Autorización | `Server / Persistence` | Crítica | To Do |

@@ -17,6 +17,7 @@ public class DocumentService : IDocumentService
     private readonly IHashService _hashService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IValidator<UploadDocumentRequestDto> _uploadValidator;
+    private readonly IValidator<RectifyDocumentRequestDto> _rectifyValidator;
     private readonly ILogger<DocumentService> _logger;
 
     public DocumentService(
@@ -26,6 +27,7 @@ public class DocumentService : IDocumentService
         IHashService hashService,
         ICurrentUserService currentUserService,
         IValidator<UploadDocumentRequestDto> uploadValidator,
+        IValidator<RectifyDocumentRequestDto> rectifyValidator,
         ILogger<DocumentService> logger)
     {
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
@@ -34,6 +36,7 @@ public class DocumentService : IDocumentService
         _hashService = hashService ?? throw new ArgumentNullException(nameof(hashService));
         _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
         _uploadValidator = uploadValidator ?? throw new ArgumentNullException(nameof(uploadValidator));
+        _rectifyValidator = rectifyValidator ?? throw new ArgumentNullException(nameof(rectifyValidator));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -166,6 +169,169 @@ public class DocumentService : IDocumentService
 
             return Result<DocumentResponseDto>.Failure(
                 "No fue posible guardar el registro del documento en la base de datos.",
+                "PERSISTENCE_TRANSACTION_FAILED");
+        }
+    }
+
+    public async Task<Result<DocumentResponseDto>> RectifyDocumentAsync(
+        RectifyDocumentRequestDto request, 
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request, nameof(request));
+
+        // 1. Validate request metadata & file parameters
+        var validationResult = await _rectifyValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            var validationErrors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
+            _logger.LogWarning("Validation failed for document rectification request: {Errors}", string.Join("; ", validationErrors));
+            return Result<DocumentResponseDto>.Failure(
+                "Los datos para la rectificación del documento son inválidos.",
+                "VALIDATION_ERROR",
+                validationErrors);
+        }
+
+        // 2. Locate existing document by DocumentId or by StudentRegistration + DocumentType
+        Document? document = null;
+        if (request.DocumentId.HasValue && request.DocumentId.Value != Guid.Empty)
+        {
+            document = await _documentRepository.GetWithDetailsAsync(request.DocumentId.Value, cancellationToken);
+        }
+        else if (!string.IsNullOrWhiteSpace(request.StudentRegistration) && request.DocumentType.HasValue)
+        {
+            document = await _documentRepository.GetByRegistrationAndTypeWithDetailsAsync(
+                request.StudentRegistration, 
+                request.DocumentType.Value, 
+                cancellationToken);
+        }
+
+        if (document is null)
+        {
+            _logger.LogWarning("Document not found for rectification: DocumentId={DocumentId}, StudentRegistration={StudentRegistration}",
+                request.DocumentId, request.StudentRegistration);
+            return Result<DocumentResponseDto>.Failure(
+                "El documento especificado para rectificación no fue encontrado.",
+                "DOCUMENT_NOT_FOUND");
+        }
+
+        // 3. Compute non-blocking SHA-256 hash over rectified file stream
+        string fileHashSha256;
+        try
+        {
+            fileHashSha256 = await _hashService.ComputeSha256Async(request.FileStream, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to compute SHA-256 hash for rectified file '{FileName}'", request.FileName);
+            return Result<DocumentResponseDto>.Failure(
+                "No fue posible procesar la integridad criptográfica del archivo rectificado.",
+                "HASH_COMPUTATION_ERROR");
+        }
+
+        // 4. Construct hierarchical storage path with next version
+        var nextVersionNumber = (document.Versions.Count > 0 ? document.Versions.Max(v => v.VersionNumber) : 0) + 1;
+        var sanitizedRegistration = document.StudentRegistration.Trim();
+        var sanitizedFileName = Path.GetFileName(request.FileName);
+        var storagePath = $"{sanitizedRegistration}/{DateTime.UtcNow.Year}/v{nextVersionNumber}_{fileHashSha256}_{sanitizedFileName}";
+
+        // 5. Upload new binary version to MinIO S3
+        string persistedStoragePath;
+        try
+        {
+            persistedStoragePath = await _storageService.UploadFileAsync(
+                request.FileStream,
+                storagePath,
+                request.ContentType,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to upload rectified file to storage at path '{StoragePath}'", storagePath);
+            return Result<DocumentResponseDto>.Failure(
+                "Error al almacenar el archivo rectificado en el repositorio de objetos.",
+                "STORAGE_UPLOAD_ERROR");
+        }
+
+        // 6. Atomic SQL Server Transaction: Link DocumentVersion, update CurrentVersion, and AuditLog
+        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var currentUserId = string.IsNullOrWhiteSpace(_currentUserService.UserId) ? "System" : _currentUserService.UserId;
+            var currentUserIp = _currentUserService.IpAddress;
+
+            // Inmutable version addition: prior versions are preserved untouched
+            document.AddNewVersion(
+                persistedStoragePath,
+                fileHashSha256,
+                request.FileSizeBytes,
+                request.ContentType,
+                currentUserId);
+
+            // AuditLog with DocumentRectified action and mandatory change reason
+            var auditLog = new AuditLog(
+                currentUserId,
+                AuditAction.DocumentRectified,
+                document.Id,
+                currentUserIp,
+                $"DOCUMENT_RECTIFIED: Versión {document.CurrentVersion} generada para documento '{document.Title}'. Motivo: {request.ChangeReason.Trim()}. Hash: {fileHashSha256}.");
+
+            await _unitOfWork.Repository<AuditLog, Guid>().AddAsync(auditLog, cancellationToken);
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+
+            _logger.LogInformation(
+                "Document '{DocumentId}' successfully rectified to version {Version} by user '{UserId}'. Reason: {Reason}",
+                document.Id,
+                document.CurrentVersion,
+                currentUserId,
+                request.ChangeReason);
+
+            var responseDto = new DocumentResponseDto
+            {
+                Id = document.Id,
+                Title = document.Title,
+                StudentRegistration = document.StudentRegistration,
+                DocumentType = document.DocumentType,
+                Status = document.Status,
+                CurrentVersion = document.CurrentVersion,
+                CreatedAtUtc = document.CreatedAtUtc,
+                CurrentFileHash = fileHashSha256,
+                CreatedBy = document.CreatedBy,
+                Versions = document.Versions.OrderByDescending(v => v.VersionNumber).Select(v => new DocumentVersionDto
+                {
+                    VersionNumber = v.VersionNumber,
+                    FileHash = v.FileHashSha256,
+                    FileSizeBytes = v.FileSize,
+                    CreatedAtUtc = v.CreatedAtUtc,
+                    UploadedBy = v.CreatedByUserId,
+                    MimeType = v.MimeType,
+                    StoragePath = v.StoragePath
+                }).ToList()
+            };
+
+            return Result<DocumentResponseDto>.Success(
+                responseDto,
+                $"Documento rectificado exitosamente. Se ha generado la versión {document.CurrentVersion}.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Transaction failed rectifying document '{DocumentId}'. Initiating rollback and storage compensation.", document.Id);
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+
+            // Storage Compensation: Remove newly uploaded blob from MinIO
+            try
+            {
+                await _storageService.DeleteFileAsync(persistedStoragePath, CancellationToken.None);
+                _logger.LogInformation("Compensated storage upload by deleting orphaned rectified object '{StoragePath}'", persistedStoragePath);
+            }
+            catch (Exception compEx)
+            {
+                _logger.LogError(compEx, "Storage compensation failed for rectified object '{StoragePath}'", persistedStoragePath);
+            }
+
+            return Result<DocumentResponseDto>.Failure(
+                "No fue posible guardar la nueva versión del documento en la base de datos.",
                 "PERSISTENCE_TRANSACTION_FAILED");
         }
     }

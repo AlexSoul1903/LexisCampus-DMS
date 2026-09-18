@@ -9,6 +9,10 @@ public interface IDocumentService
         UploadDocumentRequestDto request, 
         CancellationToken cancellationToken = default);
 
+    Task<Result<DocumentResponseDto>> RectifyDocumentAsync(
+        RectifyDocumentRequestDto request, 
+        CancellationToken cancellationToken = default);
+
     Task<Result<DocumentResponseDto>> GetByIdAsync(
         Guid id, 
         CancellationToken cancellationToken = default);

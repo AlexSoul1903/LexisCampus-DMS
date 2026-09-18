@@ -70,6 +70,96 @@ public class DocumentsController : ControllerBase
     }
 
     /// <summary>
+    /// Uploads a rectified file version for an existing document by its ID.
+    /// </summary>
+    [HttpPost("{id:guid}/rectify")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(50 * 1024 * 1024)]
+    [ProducesResponseType(typeof(Result<DocumentResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Result<DocumentResponseDto>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(Result<DocumentResponseDto>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RectifyById(
+        Guid id,
+        [FromForm] RectifyDocumentFormRequest formRequest,
+        CancellationToken cancellationToken)
+    {
+        if (formRequest.File is null || formRequest.File.Length == 0)
+        {
+            return BadRequest(Result<DocumentResponseDto>.Failure(
+                "Debe proporcionar un archivo válido para la rectificación.",
+                "INVALID_FILE"));
+        }
+
+        await using var stream = formRequest.File.OpenReadStream();
+
+        var requestDto = new RectifyDocumentRequestDto
+        {
+            DocumentId = id,
+            ChangeReason = formRequest.ChangeReason,
+            FileStream = stream,
+            FileName = formRequest.File.FileName,
+            ContentType = string.IsNullOrWhiteSpace(formRequest.File.ContentType)
+                ? "application/octet-stream"
+                : formRequest.File.ContentType,
+            FileSizeBytes = formRequest.File.Length
+        };
+
+        var result = await _documentService.RectifyDocumentAsync(requestDto, cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return result.ErrorCode == "DOCUMENT_NOT_FOUND" ? NotFound(result) : BadRequest(result);
+        }
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Uploads a rectified file version for an existing document by student registration and document type.
+    /// </summary>
+    [HttpPost("rectify")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(50 * 1024 * 1024)]
+    [ProducesResponseType(typeof(Result<DocumentResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Result<DocumentResponseDto>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(Result<DocumentResponseDto>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Rectify(
+        [FromForm] RectifyDocumentFormRequest formRequest,
+        CancellationToken cancellationToken)
+    {
+        if (formRequest.File is null || formRequest.File.Length == 0)
+        {
+            return BadRequest(Result<DocumentResponseDto>.Failure(
+                "Debe proporcionar un archivo válido para la rectificación.",
+                "INVALID_FILE"));
+        }
+
+        await using var stream = formRequest.File.OpenReadStream();
+
+        var requestDto = new RectifyDocumentRequestDto
+        {
+            StudentRegistration = formRequest.StudentRegistration,
+            DocumentType = formRequest.DocumentType,
+            ChangeReason = formRequest.ChangeReason,
+            FileStream = stream,
+            FileName = formRequest.File.FileName,
+            ContentType = string.IsNullOrWhiteSpace(formRequest.File.ContentType)
+                ? "application/octet-stream"
+                : formRequest.File.ContentType,
+            FileSizeBytes = formRequest.File.Length
+        };
+
+        var result = await _documentService.RectifyDocumentAsync(requestDto, cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return result.ErrorCode == "DOCUMENT_NOT_FOUND" ? NotFound(result) : BadRequest(result);
+        }
+
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Retrieves document metadata and version history by ID.
     /// </summary>
     [HttpGet("{id:guid}")]

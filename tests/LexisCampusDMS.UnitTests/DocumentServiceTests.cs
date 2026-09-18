@@ -21,6 +21,7 @@ public class DocumentServiceTests
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
     private readonly Mock<IGenericRepository<AuditLog, Guid>> _auditRepoMock = new();
     private readonly UploadDocumentRequestDtoValidator _validator = new();
+    private readonly RectifyDocumentRequestDtoValidator _rectifyValidator = new();
 
     private readonly DocumentService _documentService;
 
@@ -38,6 +39,7 @@ public class DocumentServiceTests
             _hashServiceMock.Object,
             _currentUserMock.Object,
             _validator,
+            _rectifyValidator,
             NullLogger<DocumentService>.Instance);
     }
 
@@ -227,5 +229,244 @@ public class DocumentServiceTests
 
         _storageServiceMock.Verify(s => s.UploadFileAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         _unitOfWorkMock.Verify(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RectifyDocumentAsync_ValidRequestById_IncrementsVersionUploadsToMinioAndAudits()
+    {
+        // Arrange
+        var docId = Guid.NewGuid();
+        var existingDoc = new Document("Certificado de Notas", "2023-0145", DocumentType.Transcript, "usr-original");
+        existingDoc.AddNewVersion("2023-0145/2026/v1_oldhash_Certificado.pdf", "oldhash123", 1024, "application/pdf", "usr-original");
+
+        _documentRepoMock
+            .Setup(r => r.GetWithDetailsAsync(docId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existingDoc);
+
+        var newHash = "b2c3d4e5f678901234567890abcdef1234567890abcdef1234567890abcdef12";
+        _hashServiceMock
+            .Setup(h => h.ComputeSha256Async(It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(newHash);
+
+        var expectedStoragePath = $"2023-0145/{DateTime.UtcNow.Year}/v2_{newHash}_Certificado_Rectificado.pdf";
+        _storageServiceMock
+            .Setup(s => s.UploadFileAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedStoragePath);
+
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("Rectified PDF Content"));
+        var request = new RectifyDocumentRequestDto
+        {
+            DocumentId = docId,
+            ChangeReason = "Corrección de calificación de asignatura Cálculo II",
+            FileName = "Certificado_Rectificado.pdf",
+            ContentType = "application/pdf",
+            FileStream = stream,
+            FileSizeBytes = stream.Length
+        };
+
+        // Act
+        var result = await _documentService.RectifyDocumentAsync(request);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        Assert.Equal(2, result.Data!.CurrentVersion);
+        Assert.Equal(newHash, result.Data!.CurrentFileHash);
+        Assert.NotNull(result.Data!.Versions);
+        Assert.Equal(2, result.Data!.Versions!.Count);
+
+        // Verify storage upload called
+        _storageServiceMock.Verify(s => s.UploadFileAsync(
+            stream,
+            It.Is<string>(p => p.Contains("2023-0145") && p.Contains("v2") && p.Contains(newHash)),
+            "application/pdf",
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        // Verify transactional persistence
+        _unitOfWorkMock.Verify(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWorkMock.Verify(u => u.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+
+        // Verify AuditLog contains DocumentRectified and the change reason
+        _auditRepoMock.Verify(a => a.AddAsync(
+            It.Is<AuditLog>(l => l.Action == AuditAction.DocumentRectified &&
+                                 l.Details!.Contains("Motivo: Corrección de calificación") &&
+                                 l.Details.Contains("Versión 2")),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RectifyDocumentAsync_ValidRequestByStudentAndType_FindsDocAndAddsVersion()
+    {
+        // Arrange
+        var existingDoc = new Document("Título de Grado", "2024-5555", DocumentType.Degree, "usr-original");
+        existingDoc.AddNewVersion("2024-5555/2026/v1_old_Grado.pdf", "oldhash", 2048, "application/pdf", "usr-original");
+
+        _documentRepoMock
+            .Setup(r => r.GetByRegistrationAndTypeWithDetailsAsync("2024-5555", DocumentType.Degree, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existingDoc);
+
+        var newHash = "newhash456";
+        _hashServiceMock
+            .Setup(h => h.ComputeSha256Async(It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(newHash);
+
+        _storageServiceMock
+            .Setup(s => s.UploadFileAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("path/to/v2");
+
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("Rectified degree"));
+        var request = new RectifyDocumentRequestDto
+        {
+            StudentRegistration = "2024-5555",
+            DocumentType = DocumentType.Degree,
+            ChangeReason = "Actualización de firma del rector",
+            FileName = "Titulo_Firmado.pdf",
+            ContentType = "application/pdf",
+            FileStream = stream,
+            FileSizeBytes = stream.Length
+        };
+
+        // Act
+        var result = await _documentService.RectifyDocumentAsync(request);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Data!.CurrentVersion);
+        _unitOfWorkMock.Verify(u => u.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RectifyDocumentAsync_DocumentNotFound_ReturnsFailureWithoutCallingStorage()
+    {
+        // Arrange
+        var docId = Guid.NewGuid();
+        _documentRepoMock
+            .Setup(r => r.GetWithDetailsAsync(docId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Document?)null);
+
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("PDF content"));
+        var request = new RectifyDocumentRequestDto
+        {
+            DocumentId = docId,
+            ChangeReason = "Rectificación de documento inexistente",
+            FileName = "Rect.pdf",
+            ContentType = "application/pdf",
+            FileStream = stream,
+            FileSizeBytes = stream.Length
+        };
+
+        // Act
+        var result = await _documentService.RectifyDocumentAsync(request);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal("DOCUMENT_NOT_FOUND", result.ErrorCode);
+
+        _hashServiceMock.Verify(h => h.ComputeSha256Async(It.IsAny<Stream>(), It.IsAny<CancellationToken>()), Times.Never);
+        _storageServiceMock.Verify(s => s.UploadFileAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWorkMock.Verify(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RectifyDocumentAsync_EmptyChangeReason_ReturnsValidationError()
+    {
+        // Arrange
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("PDF content"));
+        var request = new RectifyDocumentRequestDto
+        {
+            DocumentId = Guid.NewGuid(),
+            ChangeReason = "", // Empty reason should fail validation
+            FileName = "Rect.pdf",
+            ContentType = "application/pdf",
+            FileStream = stream,
+            FileSizeBytes = stream.Length
+        };
+
+        // Act
+        var result = await _documentService.RectifyDocumentAsync(request);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal("VALIDATION_ERROR", result.ErrorCode);
+        Assert.Contains(result.Errors, e => e.Contains("motivo"));
+
+        _documentRepoMock.Verify(r => r.GetWithDetailsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RectifyDocumentAsync_DisallowedExtension_ReturnsValidationError()
+    {
+        // Arrange
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("dangerous code"));
+        var request = new RectifyDocumentRequestDto
+        {
+            DocumentId = Guid.NewGuid(),
+            ChangeReason = "Actualización con script no autorizado",
+            FileName = "malicious_script.bat",
+            ContentType = "application/x-bat",
+            FileStream = stream,
+            FileSizeBytes = stream.Length
+        };
+
+        // Act
+        var result = await _documentService.RectifyDocumentAsync(request);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal("VALIDATION_ERROR", result.ErrorCode);
+        Assert.Contains(result.Errors, e => e.Contains(".pdf, .png, .jpg y .jpeg"));
+
+        _storageServiceMock.Verify(s => s.UploadFileAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RectifyDocumentAsync_DatabaseFailure_RollsBackAndCompensatesStorage()
+    {
+        // Arrange
+        var docId = Guid.NewGuid();
+        var existingDoc = new Document("Título", "2023-0145", DocumentType.StudyCertificate, "usr-original");
+        existingDoc.AddNewVersion("path/v1", "hash1", 100, "application/pdf", "usr-original");
+
+        _documentRepoMock
+            .Setup(r => r.GetWithDetailsAsync(docId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existingDoc);
+
+        var uploadedPath = "2023-0145/2026/v2_hash2_file.pdf";
+        _hashServiceMock
+            .Setup(h => h.ComputeSha256Async(It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("hash2");
+
+        _storageServiceMock
+            .Setup(s => s.UploadFileAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(uploadedPath);
+
+        _unitOfWorkMock
+            .Setup(u => u.CommitTransactionAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Simulated SQL deadlock"));
+
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("Rect content"));
+        var request = new RectifyDocumentRequestDto
+        {
+            DocumentId = docId,
+            ChangeReason = "Rectificación legítima con error de persistencia simulado",
+            FileName = "file.pdf",
+            ContentType = "application/pdf",
+            FileStream = stream,
+            FileSizeBytes = stream.Length
+        };
+
+        // Act
+        var result = await _documentService.RectifyDocumentAsync(request);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal("PERSISTENCE_TRANSACTION_FAILED", result.ErrorCode);
+
+        // Verify transaction rollback
+        _unitOfWorkMock.Verify(u => u.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+
+        // Verify compensation: deleted uploaded MinIO object
+        _storageServiceMock.Verify(s => s.DeleteFileAsync(uploadedPath, It.IsAny<CancellationToken>()), Times.Once);
     }
 }
