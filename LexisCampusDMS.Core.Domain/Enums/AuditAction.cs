@@ -9,5 +9,6 @@ public enum AuditAction
     Viewed = 5,
     VersionCreated = 6,
     HashVerified = 7,
-    StatusChanged = 8
+    StatusChanged = 8,
+    DocumentUploaded = 9
 }

@@ -148,12 +148,33 @@
 
 ---
 
+## 📌 Sprint 2: Fase 3 - Casos de Uso (Application & Persistence Orchestration)
+
+### [LEX-301] Caso de Uso: Carga de Documento con Versionado Inicial
+- **Capa Onion**: `Application (Casos de Uso) / Persistence`
+- **Fase / Sprint**: `Fase 3: Casos de Uso`
+- **Estado**: `Done` ✅
+- **Prioridad**: `Crítica`
+- **Story Points (Fibonacci)**: `5`
+- **Asignado a**: `Backend Architect (.NET 8) — Core / API`
+- **Declaración de Historia de Usuario**:
+  > *Como Analista de Registro, quiero subir un nuevo documento adjuntando la matrícula y tipo, para que el sistema calcule su hash, lo guarde en MinIO y registre la versión v1 en la base de datos.*
+- **Notas Técnicas & Especificaciones de Arquitectura**:
+  > *Servicio de Aplicación DocumentService con transacción atómica (Unit of Work) y compensación ante errores. Repositorios GenericRepository, DocumentRepository y UnitOfWork en Persistence. Controlador DocumentsController con endpoint multipart/form-data. Envoltorio Result<T> en Application.Common.*
+- **Criterios de Aceptación (Definition of Done)**:
+  - [x] Validar archivo multipart (`IFormFile`) y metadatos requeridos (matrícula válida, tipo admitido) (`UploadDocumentRequestDtoValidator` con FluentValidation)
+  - [x] Calcular hash SHA-256 sobre el stream entrante (`IHashService.ComputeSha256Async` sin bloquear RAM y preservando `Position = 0`)
+  - [x] Subir el stream binario a MinIO y obtener la ruta persistida (`IStorageService.UploadFileAsync` con jerarquía estructurada `/{matricula}/{anio}/{hash}_{archivo}.pdf`)
+  - [x] Crear registro transaccional en SQL Server (`Document` + `DocumentVersion` número 1) vía `IUnitOfWork`
+  - [x] Registrar entrada en `AuditLog` con acción "DOCUMENT_UPLOADED" (`AuditAction.DocumentUploaded`), UserId e IP de la petición
+
+---
+
 ## 📋 Backlog (Próximas Historias)
 
 | ID | Título | Capa Onion | Prioridad | Estado |
 |---|---|---|---|---|
-| **LEX-204** | Implementación de Repositorio Genérico & IDocumentRepository | `Persistence` | Crítica | To Do |
-| **LEX-205** | Implementación de UnitOfWork | `Persistence` | Alta | To Do |
-| **LEX-206** | Servicio de Documentos & Orquestación de Casos de Uso | `Application` | Crítica | To Do |
-| **LEX-207** | Controladores API REST & Middleware de Excepciones Globales | `Server` | Crítica | To Do |
-| **LEX-208** | Autenticación JWT, Refresh Tokens & Políticas de Autorización | `Server / Persistence` | Crítica | To Do |
+| **LEX-302** | Caso de Uso: Carga de Nuevas Versiones de Documento (v2+) | `Application` | Alta | To Do |
+| **LEX-303** | Caso de Uso: Búsqueda y Filtrado Paginado de Expedientes | `Application` | Alta | To Do |
+| **LEX-304** | Controladores API REST & Middleware de Excepciones Globales (RFC 7807) | `Server` | Crítica | To Do |
+| **LEX-305** | Autenticación JWT, Refresh Tokens & Políticas de Autorización | `Server / Persistence` | Crítica | To Do |
