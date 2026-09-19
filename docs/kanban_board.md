@@ -262,9 +262,30 @@
 
 ---
 
+### [LEX-307] Descarga Masiva de Expediente Estudiantil en Archivo ZIP
+- **Capa Onion**: `Application (Casos de Uso) / Shared / Presentation (Server)`
+- **Fase / Sprint**: `Fase 3: Casos de Uso`
+- **Estado**: `Done` ✅
+- **Prioridad**: `Media`
+- **Story Points (Fibonacci)**: `3`
+- **Asignado a**: `Backend Architect (.NET 8) — Core / API`
+- **Declaración de Historia de Usuario**:
+  > *Como Oficial de Registro, quiero descargar en un único archivo ZIP todos los documentos vigentes de un estudiante por su matrícula, para tramitar expedientes de graduación y traslados sin descargas individuales.*
+- **Notas Técnicas & Especificaciones de Arquitectura**:
+  > *Optimizar memoria con RecyclableMemoryStreamManager para prevenir saturación del Large Object Heap (LOH). Streaming HTTP directo sin escribir archivos temporales en disco. Inclusión de manifiesto JSON resumen_expediente.json con metadatos, fechas de emisión y hashes SHA-256 de todas las versiones vigentes. Registro mandatorio en AuditLog con acción STUDENT_DOSSIER_DOWNLOADED.*
+- **Criterios de Aceptación (Definition of Done)**:
+  - [x] Crear endpoint `GET /api/documents/student/{matricula}/dossier-zip` con validación de existencia
+  - [x] Recuperar todas las versiones vigentes asociadas a la matrícula y comprimir en stream ZIP con `System.IO.Compression`
+  - [x] Incluir manifiesto `resumen_expediente.json` con metadatos, fechas de emisión y hashes SHA-256 dentro del ZIP
+  - [x] Streaming HTTP directo hacia el cliente sin almacenar el archivo temporal `.zip` en disco (usando `RecyclableMemoryStreamManager`)
+  - [x] Registrar evento `"STUDENT_DOSSIER_DOWNLOADED"` en la bitácora de auditoría con la matrícula consultada
+
+---
+
 ## 📋 Backlog (Próximas Historias)
 
 | ID | Título | Capa Onion | Prioridad | Estado |
 |---|---|---|---|---|
-| **LEX-307** | Middleware de Excepciones Globales (RFC 7807) & Manejo de Errores | `Server` | Crítica | To Do |
-| **LEX-308** | Endpoint de Registro / Alta de Usuarios y Gestión de Roles | `Server / Application` | Alta | To Do |
+| **LEX-308** | Middleware de Excepciones Globales (RFC 7807) & Manejo de Errores | `Server` | Crítica | To Do |
+| **LEX-309** | Endpoint de Registro / Alta de Usuarios y Gestión de Roles | `Server / Application` | Alta | To Do |
+

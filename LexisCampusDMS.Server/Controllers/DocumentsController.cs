@@ -352,4 +352,40 @@ public class DocumentsController : ControllerBase
 
         return Ok(result);
     }
+
+    /// <summary>
+    /// Downloads all active (non-revoked) documents for a student in a single ZIP archive,
+    /// including an audit manifest file (resumen_expediente.json) with SHA-256 hashes and metadata.
+    /// Memory usage is optimized with RecyclableMemoryStream to prevent LOH saturation.
+    /// </summary>
+    /// <param name="matricula">Student registration number.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <response code="200">ZIP archive containing all active documents and manifest.</response>
+    /// <response code="400">Invalid or empty student registration number.</response>
+    /// <response code="404">No active documents found for the specified student.</response>
+    [HttpGet("student/{matricula}/dossier-zip")]
+    [ProducesResponseType(typeof(FileStreamResult), StatusCodes.Status200OK, "application/zip")]
+    [ProducesResponseType(typeof(Result<StudentDossierDownloadDto>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(Result<StudentDossierDownloadDto>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DownloadStudentDossierZip(
+        string matricula, 
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(matricula))
+        {
+            return BadRequest(Result<StudentDossierDownloadDto>.Failure(
+                "La matrícula del estudiante es requerida.",
+                "INVALID_STUDENT_REGISTRATION"));
+        }
+
+        var result = await _documentService.DownloadStudentDossierZipAsync(matricula, cancellationToken);
+        if (!result.IsSuccess)
+        {
+            return result.ErrorCode == "STUDENT_DOSSIER_NOT_FOUND" 
+                ? NotFound(result) 
+                : BadRequest(result);
+        }
+
+        return File(result.Data!.Stream, result.Data.ContentType, result.Data.FileName);
+    }
 }

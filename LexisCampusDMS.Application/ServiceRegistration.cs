@@ -13,6 +13,9 @@ public static class ServiceRegistration
         // FluentValidation validators
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
 
+        // Memory Optimization (LOH Prevention)
+        services.AddSingleton<Microsoft.IO.RecyclableMemoryStreamManager>();
+
         // Application Services
         services.AddScoped<IDocumentService, DocumentService>();
         services.AddScoped<IAuthService, AuthService>();

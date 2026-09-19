@@ -12,5 +12,6 @@ public enum AuditAction
     StatusChanged = 8,
     DocumentUploaded = 9,
     DocumentRectified = 10,
-    DocumentRevoked = 11
+    DocumentRevoked = 11,
+    StudentDossierDownloaded = 12
 }

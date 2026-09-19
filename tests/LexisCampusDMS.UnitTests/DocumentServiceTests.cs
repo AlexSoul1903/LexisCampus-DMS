@@ -1,4 +1,6 @@
+using System.IO.Compression;
 using System.Text;
+using System.Text.Json;
 using LexisCampusDMS.Application.DTOs;
 using LexisCampusDMS.Application.Interfaces;
 using LexisCampusDMS.Application.Services;
@@ -7,6 +9,7 @@ using LexisCampusDMS.Core.Domain.Entities;
 using LexisCampusDMS.Core.Domain.Enums;
 using LexisCampusDMS.Core.Domain.Interfaces;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.IO;
 using Moq;
 using Xunit;
 
@@ -40,6 +43,7 @@ public class DocumentServiceTests
             _currentUserMock.Object,
             _validator,
             _rectifyValidator,
+            new RecyclableMemoryStreamManager(),
             NullLogger<DocumentService>.Instance);
     }
 
@@ -807,5 +811,151 @@ public class DocumentServiceTests
         // Assert
         Assert.False(result.IsSuccess);
         Assert.Equal("DOCUMENT_NOT_FOUND", result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task DownloadStudentDossierZipAsync_ValidMatricula_ReturnsZipStreamWithManifestAndActiveDocumentsAndCreatesAuditLog()
+    {
+        // Arrange
+        var matricula = "2023-0001";
+
+        var doc1 = new Document("Acta de Nacimiento", matricula, DocumentType.BirthCertificate, "usr-test")
+        {
+            Status = DocumentStatus.Approved
+        };
+        doc1.AddNewVersion("students/2023-0001/doc1.pdf", "hash_doc1_sha256", 1024, "application/pdf", "usr-test");
+
+        var doc2 = new Document("Récord de Notas", matricula, DocumentType.Transcript, "usr-test")
+        {
+            Status = DocumentStatus.Draft
+        };
+        doc2.AddNewVersion("students/2023-0001/doc2.pdf", "hash_doc2_sha256", 2048, "application/pdf", "usr-test");
+
+        var docRevoked = new Document("Título de Bachiller", matricula, DocumentType.Degree, "usr-test")
+        {
+            Status = DocumentStatus.Revoked
+        };
+        docRevoked.AddNewVersion("students/2023-0001/docRevoked.pdf", "hash_revoked_sha256", 512, "application/pdf", "usr-test");
+
+        _documentRepoMock
+            .Setup(r => r.GetByStudentRegistrationAsync(matricula, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Document> { doc1, doc2, docRevoked });
+
+        _storageServiceMock
+            .Setup(s => s.GetFileStreamAsync("students/2023-0001/doc1.pdf", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new MemoryStream(Encoding.UTF8.GetBytes("Fake PDF Content 1")));
+
+        _storageServiceMock
+            .Setup(s => s.GetFileStreamAsync("students/2023-0001/doc2.pdf", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new MemoryStream(Encoding.UTF8.GetBytes("Fake PDF Content 2")));
+
+        // Act
+        var result = await _documentService.DownloadStudentDossierZipAsync(matricula);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        Assert.NotNull(result.Data.Stream);
+        Assert.Equal("application/zip", result.Data.ContentType);
+        Assert.StartsWith("expediente_2023-0001_", result.Data.FileName);
+        Assert.EndsWith(".zip", result.Data.FileName);
+
+        // Verify ZIP contents
+        using var archive = new ZipArchive(result.Data.Stream, ZipArchiveMode.Read, leaveOpen: true);
+        Assert.Equal(3, archive.Entries.Count); // 2 active documents + 1 manifest
+
+        var manifestEntry = archive.GetEntry("resumen_expediente.json");
+        Assert.NotNull(manifestEntry);
+
+        using (var manifestStream = manifestEntry.Open())
+        using (var reader = new StreamReader(manifestStream))
+        {
+            var json = await reader.ReadToEndAsync();
+            var manifest = JsonSerializer.Deserialize<StudentDossierManifestDto>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            Assert.NotNull(manifest);
+            Assert.Equal(matricula, manifest.StudentRegistration);
+            Assert.Equal("usr-12345", manifest.GeneratedBy);
+            Assert.Equal(2, manifest.TotalDocuments);
+            Assert.Equal(2, manifest.Documents.Count);
+
+            // Assert active documents are present and revoked is absent
+            Assert.Contains(manifest.Documents, d => d.DocumentId == doc1.Id && d.FileHashSha256 == "hash_doc1_sha256");
+            Assert.Contains(manifest.Documents, d => d.DocumentId == doc2.Id && d.FileHashSha256 == "hash_doc2_sha256");
+            Assert.DoesNotContain(manifest.Documents, d => d.DocumentId == docRevoked.Id);
+        }
+
+        // Verify audit log creation
+        _auditRepoMock.Verify(a => a.AddAsync(
+            It.Is<AuditLog>(log =>
+                log.Action == AuditAction.StudentDossierDownloaded &&
+                log.UserId == "usr-12345" &&
+                log.Details != null &&
+                log.Details.Contains("STUDENT_DOSSIER_DOWNLOADED") &&
+                log.Details.Contains(matricula)),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DownloadStudentDossierZipAsync_NoDocumentsFound_ReturnsNotFound()
+    {
+        // Arrange
+        var matricula = "2023-9999";
+        _documentRepoMock
+            .Setup(r => r.GetByStudentRegistrationAsync(matricula, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Document>());
+
+        // Act
+        var result = await _documentService.DownloadStudentDossierZipAsync(matricula);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.False(result.IsSuccess);
+        Assert.Equal("STUDENT_DOSSIER_NOT_FOUND", result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task DownloadStudentDossierZipAsync_OnlyRevokedDocuments_ReturnsNotFound()
+    {
+        // Arrange
+        var matricula = "2023-0002";
+        var docRevoked = new Document("Título Revocado", matricula, DocumentType.StudyCertificate, "usr-test")
+        {
+            Status = DocumentStatus.Revoked
+        };
+        docRevoked.AddNewVersion("path.pdf", "hash", 100, "application/pdf", "usr-test");
+
+        _documentRepoMock
+            .Setup(r => r.GetByStudentRegistrationAsync(matricula, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Document> { docRevoked });
+
+        // Act
+        var result = await _documentService.DownloadStudentDossierZipAsync(matricula);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.False(result.IsSuccess);
+        Assert.Equal("STUDENT_DOSSIER_NOT_FOUND", result.ErrorCode);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public async Task DownloadStudentDossierZipAsync_InvalidOrEmptyMatricula_ReturnsValidationError(string? invalidMatricula)
+    {
+        // Act
+        var result = await _documentService.DownloadStudentDossierZipAsync(invalidMatricula!);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.False(result.IsSuccess);
+        Assert.Equal("INVALID_STUDENT_REGISTRATION", result.ErrorCode);
     }
 }

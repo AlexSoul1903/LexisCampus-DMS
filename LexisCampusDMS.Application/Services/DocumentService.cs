@@ -1,3 +1,5 @@
+using System.IO.Compression;
+using System.Text.Json;
 using FluentValidation;
 using LexisCampusDMS.Application.Common;
 using LexisCampusDMS.Application.DTOs;
@@ -6,6 +8,7 @@ using LexisCampusDMS.Core.Domain.Entities;
 using LexisCampusDMS.Core.Domain.Enums;
 using LexisCampusDMS.Core.Domain.Interfaces;
 using Microsoft.Extensions.Logging;
+using Microsoft.IO;
 
 namespace LexisCampusDMS.Application.Services;
 
@@ -18,6 +21,7 @@ public class DocumentService : IDocumentService
     private readonly ICurrentUserService _currentUserService;
     private readonly IValidator<UploadDocumentRequestDto> _uploadValidator;
     private readonly IValidator<RectifyDocumentRequestDto> _rectifyValidator;
+    private readonly RecyclableMemoryStreamManager _recyclableMemoryStreamManager;
     private readonly ILogger<DocumentService> _logger;
 
     public DocumentService(
@@ -28,6 +32,7 @@ public class DocumentService : IDocumentService
         ICurrentUserService currentUserService,
         IValidator<UploadDocumentRequestDto> uploadValidator,
         IValidator<RectifyDocumentRequestDto> rectifyValidator,
+        RecyclableMemoryStreamManager recyclableMemoryStreamManager,
         ILogger<DocumentService> logger)
     {
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
@@ -37,6 +42,7 @@ public class DocumentService : IDocumentService
         _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
         _uploadValidator = uploadValidator ?? throw new ArgumentNullException(nameof(uploadValidator));
         _rectifyValidator = rectifyValidator ?? throw new ArgumentNullException(nameof(rectifyValidator));
+        _recyclableMemoryStreamManager = recyclableMemoryStreamManager ?? throw new ArgumentNullException(nameof(recyclableMemoryStreamManager));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -689,5 +695,146 @@ public class DocumentService : IDocumentService
             isRevoked 
                 ? "Atención: El documento consultado se encuentra formalmente REVOCADO." 
                 : "Documento verificado exitosamente en los registros institucionales.");
+    }
+
+    public async Task<Result<StudentDossierDownloadDto>> DownloadStudentDossierZipAsync(
+        string studentRegistration, 
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(studentRegistration))
+        {
+            return Result<StudentDossierDownloadDto>.Failure(
+                "La matrícula del estudiante es requerida.",
+                "INVALID_STUDENT_REGISTRATION");
+        }
+
+        var normalizedMatricula = studentRegistration.Trim();
+        var documents = await _documentRepository.GetByStudentRegistrationAsync(normalizedMatricula, cancellationToken);
+        
+        // Filter only active, non-revoked and non-deleted documents
+        var activeDocuments = documents
+            .Where(d => d.Status != DocumentStatus.Revoked && !d.IsDeleted)
+            .ToList();
+
+        if (activeDocuments.Count == 0)
+        {
+            _logger.LogInformation("No active documents found for student registration '{StudentRegistration}'", normalizedMatricula);
+            return Result<StudentDossierDownloadDto>.Failure(
+                $"No se encontraron documentos vigentes para el estudiante con matrícula '{normalizedMatricula}'.",
+                "STUDENT_DOSSIER_NOT_FOUND");
+        }
+
+        var currentUserId = _currentUserService.UserId ?? "System";
+        var currentUserIp = _currentUserService.IpAddress;
+
+        // Pooled memory stream to prevent LOH (Large Object Heap) allocations and GC pressure
+        var memoryStream = _recyclableMemoryStreamManager.GetStream("student-dossier-zip");
+
+        var manifest = new StudentDossierManifestDto
+        {
+            StudentRegistration = normalizedMatricula,
+            GeneratedAtUtc = DateTime.UtcNow,
+            GeneratedBy = currentUserId,
+            TotalDocuments = 0,
+            Documents = new List<StudentDossierManifestItemDto>()
+        };
+
+        using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var doc in activeDocuments)
+            {
+                var latestVersion = doc.Versions.OrderByDescending(v => v.VersionNumber).FirstOrDefault();
+                if (latestVersion == null)
+                {
+                    continue;
+                }
+
+                var safeTitle = string.Join("_", doc.Title.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
+                var extension = GetFileExtension(latestVersion.MimeType);
+                var entryFileName = $"{doc.DocumentType}_v{latestVersion.VersionNumber}_{safeTitle}_{doc.Id.ToString()[..6]}{extension}";
+
+                var entry = archive.CreateEntry(entryFileName, CompressionLevel.Optimal);
+                using (var entryStream = entry.Open())
+                {
+                    var fileStream = await _storageService.GetFileStreamAsync(latestVersion.StoragePath, cancellationToken);
+                    await fileStream.CopyToAsync(entryStream, cancellationToken);
+                }
+
+                manifest.Documents.Add(new StudentDossierManifestItemDto
+                {
+                    DocumentId = doc.Id,
+                    Title = doc.Title,
+                    DocumentType = doc.DocumentType.ToString(),
+                    Status = doc.Status.ToString(),
+                    Version = latestVersion.VersionNumber,
+                    FileName = entryFileName,
+                    FileHashSha256 = latestVersion.FileHashSha256,
+                    FileSizeBytes = latestVersion.FileSize,
+                    MimeType = latestVersion.MimeType,
+                    IssueDateUtc = doc.CreatedAtUtc
+                });
+            }
+
+            manifest.TotalDocuments = manifest.Documents.Count;
+
+            // Include manifest resumen_expediente.json inside ZIP root
+            var manifestEntry = archive.CreateEntry("resumen_expediente.json", CompressionLevel.Optimal);
+            using (var manifestStream = manifestEntry.Open())
+            {
+                var jsonOptions = new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                };
+                await JsonSerializer.SerializeAsync(manifestStream, manifest, jsonOptions, cancellationToken);
+            }
+        }
+
+        // Rewind stream for HTTP transmission
+        memoryStream.Position = 0;
+
+        // Register mandatory audit log event
+        var auditLog = new AuditLog(
+            currentUserId,
+            AuditAction.StudentDossierDownloaded,
+            null,
+            currentUserIp,
+            $"STUDENT_DOSSIER_DOWNLOADED: Expediente estudiantil en formato ZIP descargado para la matrícula '{normalizedMatricula}'. Total de documentos vigentes consolidados: {manifest.TotalDocuments}.");
+
+        await _unitOfWork.Repository<AuditLog, Guid>().AddAsync(auditLog, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Student dossier ZIP generated for matricula '{Matricula}' with {Count} documents by user '{UserId}'",
+            normalizedMatricula,
+            manifest.TotalDocuments,
+            currentUserId);
+
+        var sanitizedMatricula = string.Join("_", normalizedMatricula.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
+        var zipFileName = $"expediente_{sanitizedMatricula}_{DateTime.UtcNow:yyyyMMddHHmmss}.zip";
+
+        var resultDto = new StudentDossierDownloadDto
+        {
+            Stream = memoryStream,
+            FileName = zipFileName,
+            ContentType = "application/zip"
+        };
+
+        return Result<StudentDossierDownloadDto>.Success(
+            resultDto,
+            $"Expediente estudiantil descargado exitosamente con {manifest.TotalDocuments} documento(s) vigente(s).");
+    }
+
+    private static string GetFileExtension(string? mimeType)
+    {
+        return mimeType?.ToLowerInvariant() switch
+        {
+            "application/pdf" => ".pdf",
+            "image/jpeg" or "image/jpg" => ".jpg",
+            "image/png" => ".png",
+            "application/msword" => ".doc",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => ".docx",
+            _ => ".pdf"
+        };
     }
 }
