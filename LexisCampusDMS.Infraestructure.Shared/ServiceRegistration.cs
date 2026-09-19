@@ -40,6 +40,10 @@ public static class ServiceRegistration
         services.AddSingleton<IPasswordHasherService, BcryptPasswordHasherService>();
         services.AddScoped<ITokenService, JwtTokenService>();
 
+        // Register Cryptographic QR and PDF Watermark/Stamper Services
+        services.AddSingleton<IQrCodeService, QrCodeService>();
+        services.AddScoped<IPdfStamperService, PdfStamperService>();
+
         return services;
     }
 }

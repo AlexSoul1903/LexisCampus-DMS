@@ -20,16 +20,19 @@ namespace LexisCampusDMS.Server.Controllers;
 public class PublicVerificationController : ControllerBase
 {
     private readonly IDocumentService _documentService;
+    private readonly IQrCodeService _qrCodeService;
     private readonly IMemoryCache _memoryCache;
     private readonly ILogger<PublicVerificationController> _logger;
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(10);
 
     public PublicVerificationController(
         IDocumentService documentService,
+        IQrCodeService qrCodeService,
         IMemoryCache memoryCache,
         ILogger<PublicVerificationController> logger)
     {
         _documentService = documentService ?? throw new ArgumentNullException(nameof(documentService));
+        _qrCodeService = qrCodeService ?? throw new ArgumentNullException(nameof(qrCodeService));
         _memoryCache = memoryCache ?? throw new ArgumentNullException(nameof(memoryCache));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -90,5 +93,60 @@ public class PublicVerificationController : ControllerBase
             result.Data?.Title, normalizedKey);
 
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Generates a cryptographic QR code in PNG or SVG format containing the public verification URL.
+    /// Configured with ECC Level Q error correction for crisp scanning with any standard smartphone camera.
+    /// </summary>
+    /// <param name="hashOrToken">64-character SHA-256 file hash or document token.</param>
+    /// <param name="format">Format of the QR code: 'png' (default) or 'svg'.</param>
+    /// <response code="200">Cryptographic QR code image in the requested format.</response>
+    /// <response code="400">Invalid or empty hash provided.</response>
+    [HttpGet("verify/{hashOrToken}/qr")]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK, "image/png")]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK, "image/svg+xml")]
+    [ProducesResponseType(typeof(Result<string>), StatusCodes.Status400BadRequest)]
+    public IActionResult GetQrCode(
+        string hashOrToken, 
+        [FromQuery] string format = "png")
+    {
+        if (string.IsNullOrWhiteSpace(hashOrToken))
+        {
+            return BadRequest(Result<string>.Failure(
+                "El hash o token del documento es requerido.",
+                "INVALID_INPUT"));
+        }
+
+        var normalizedKey = hashOrToken.Trim().ToLowerInvariant();
+        var cacheKey = $"pub_qr_{normalizedKey}_{format.ToLowerInvariant()}";
+
+        Response.Headers.CacheControl = "public, max-age=86400"; // Cache for 24h
+
+        if (string.Equals(format, "svg", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_memoryCache.TryGetValue(cacheKey, out string? cachedSvg) && cachedSvg is not null)
+            {
+                Response.Headers["X-Cache"] = "HIT";
+                return Content(cachedSvg, "image/svg+xml", System.Text.Encoding.UTF8);
+            }
+
+            var svgString = _qrCodeService.GenerateVerificationQrSvg(normalizedKey);
+            _memoryCache.Set(cacheKey, svgString, TimeSpan.FromHours(24));
+            Response.Headers["X-Cache"] = "MISS";
+            return Content(svgString, "image/svg+xml", System.Text.Encoding.UTF8);
+        }
+
+        // Default PNG
+        if (_memoryCache.TryGetValue(cacheKey, out byte[]? cachedPng) && cachedPng is not null)
+        {
+            Response.Headers["X-Cache"] = "HIT";
+            return File(cachedPng, "image/png");
+        }
+
+        var pngBytes = _qrCodeService.GenerateVerificationQrPng(normalizedKey);
+        _memoryCache.Set(cacheKey, pngBytes, TimeSpan.FromHours(24));
+        Response.Headers["X-Cache"] = "MISS";
+        return File(pngBytes, "image/png");
     }
 }

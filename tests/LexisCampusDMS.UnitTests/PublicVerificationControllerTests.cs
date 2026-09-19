@@ -14,6 +14,7 @@ namespace LexisCampusDMS.UnitTests.Server;
 public class PublicVerificationControllerTests
 {
     private readonly Mock<IDocumentService> _documentServiceMock = new();
+    private readonly Mock<IQrCodeService> _qrCodeServiceMock = new();
     private readonly IMemoryCache _memoryCache = new MemoryCache(new MemoryCacheOptions());
     private readonly PublicVerificationController _controller;
 
@@ -21,6 +22,7 @@ public class PublicVerificationControllerTests
     {
         _controller = new PublicVerificationController(
             _documentServiceMock.Object,
+            _qrCodeServiceMock.Object,
             _memoryCache,
             NullLogger<PublicVerificationController>.Instance);
 
@@ -92,5 +94,43 @@ public class PublicVerificationControllerTests
         // Assert
         var badRequestResult = Assert.IsType<BadRequestObjectResult>(result);
         Assert.NotNull(badRequestResult.Value);
+    }
+
+    [Fact]
+    public void GetQrCode_Png_ReturnsFileContentResultWithImagePng()
+    {
+        // Arrange
+        var testHash = "hash1234567890abcdef";
+        var fakePngBytes = new byte[] { 0x89, 0x50, 0x4E, 0x47 }; // PNG magic bytes
+        _qrCodeServiceMock
+            .Setup(q => q.GenerateVerificationQrPng(testHash, It.IsAny<int>()))
+            .Returns(fakePngBytes);
+
+        // Act
+        var result = _controller.GetQrCode(testHash, "png");
+
+        // Assert
+        var fileResult = Assert.IsType<FileContentResult>(result);
+        Assert.Equal("image/png", fileResult.ContentType);
+        Assert.Equal(fakePngBytes, fileResult.FileContents);
+    }
+
+    [Fact]
+    public void GetQrCode_Svg_ReturnsContentResultWithSvgMimeType()
+    {
+        // Arrange
+        var testHash = "hash1234567890abcdef";
+        var fakeSvg = "<svg>...</svg>";
+        _qrCodeServiceMock
+            .Setup(q => q.GenerateVerificationQrSvg(testHash, It.IsAny<int>()))
+            .Returns(fakeSvg);
+
+        // Act
+        var result = _controller.GetQrCode(testHash, "svg");
+
+        // Assert
+        var contentResult = Assert.IsType<ContentResult>(result);
+        Assert.StartsWith("image/svg+xml", contentResult.ContentType);
+        Assert.Equal(fakeSvg, contentResult.Content);
     }
 }

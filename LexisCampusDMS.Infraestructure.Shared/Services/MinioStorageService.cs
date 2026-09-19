@@ -117,9 +117,9 @@ public class MinioStorageService : IStorageService
                 var getObjectArgs = new GetObjectArgs()
                     .WithBucket(_options.BucketName)
                     .WithObject(normalizedKey)
-                    .WithCallbackStream(stream =>
+                    .WithCallbackStream(async (stream, ct) =>
                     {
-                        stream.CopyTo(memoryStream);
+                        await stream.CopyToAsync(memoryStream, ct);
                     });
 
                 await _minioClient.GetObjectAsync(getObjectArgs, cancellationToken);

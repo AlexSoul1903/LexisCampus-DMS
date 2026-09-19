@@ -301,9 +301,29 @@
 
 ---
 
+### [LEX-502] Generador de Código QR Criptográfico con QRCoder
+- **Capa Onion**: `Certificación (Validación / Infraestructura / Shared)`
+- **Fase / Sprint**: `Fase 5: Módulo de Certificación`
+- **Estado**: `Done` ✅
+- **Prioridad**: `Alta`
+- **Story Points (Fibonacci)**: `3`
+- **Asignado a**: `Security & Cert Specialist — Crypto / QR`
+- **Declaración de Historia de Usuario**:
+  > *Como Sistema de Emisión, quiero generar un código QR que contenga la URL pública de verificación y el hash del documento al momento de certificarlo, para incrustarlo visualmente en el PDF oficial.*
+- **Notas Técnicas & Especificaciones de Arquitectura**:
+  > *Configuración de corrección de error ECC Level Q (~25% de tolerancia de error) para lectura nítida incluso con reducción de escala. Paquete QRCoder en LexisCampusDMS.Infraestructure.Shared generando PNG y SVG en código administrado (sin dependencias nativas GDI+). Estampado visual en la esquina inferior del documento PDF mediante PDFsharp. Endpoint público GET /api/public/verify/{hashOrToken}/qr?format=png|svg.*
+- **Criterios de Aceptación (Definition of Done)**:
+  - [x] Instalar paquete QRCoder en `LexisCampus.Infrastructure` (`LexisCampusDMS.Infraestructure.Shared`)
+  - [x] Generar código QR en formato PNG / SVG codificando la URL `https://lexiscampus.edu/verify/{hash}`
+  - [x] Incrustar el QR en la esquina inferior del documento emitido mediante `PdfSharp`
+  - [x] Prueba de legibilidad del QR con lectores de cámara estándar de smartphone y decodificación automatizada
+
+---
+
 ## 📋 Backlog (Próximas Historias)
 
 | ID | Título | Capa Onion | Prioridad | Estado |
 |---|---|---|---|---|
 | **LEX-308** | Middleware de Excepciones Globales (RFC 7807) & Manejo de Errores | `Server` | Crítica | To Do |
 | **LEX-309** | Endpoint de Registro / Alta de Usuarios y Gestión de Roles | `Server / Application` | Alta | To Do |
+
