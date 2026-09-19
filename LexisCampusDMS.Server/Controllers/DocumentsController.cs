@@ -3,12 +3,14 @@ using LexisCampusDMS.Application.DTOs;
 using LexisCampusDMS.Application.Interfaces;
 using LexisCampusDMS.Core.Domain.Enums;
 using LexisCampusDMS.Server.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LexisCampusDMS.Server.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "Registro,Admin,Auditor")]
 public class DocumentsController : ControllerBase
 {
     private readonly IDocumentService _documentService;
@@ -26,6 +28,7 @@ public class DocumentsController : ControllerBase
     /// Uploads a new document and registers its initial version (v1) in storage and database.
     /// </summary>
     [HttpPost("upload")]
+    [Authorize(Roles = "Registro,Admin")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(50 * 1024 * 1024)]
     [ProducesResponseType(typeof(Result<DocumentResponseDto>), StatusCodes.Status201Created)]
@@ -74,6 +77,7 @@ public class DocumentsController : ControllerBase
     /// Uploads a rectified file version for an existing document by its ID.
     /// </summary>
     [HttpPost("{id:guid}/rectify")]
+    [Authorize(Roles = "Registro,Admin")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(50 * 1024 * 1024)]
     [ProducesResponseType(typeof(Result<DocumentResponseDto>), StatusCodes.Status200OK)]
@@ -119,6 +123,7 @@ public class DocumentsController : ControllerBase
     /// Uploads a rectified file version for an existing document by student registration and document type.
     /// </summary>
     [HttpPost("rectify")]
+    [Authorize(Roles = "Registro,Admin")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(50 * 1024 * 1024)]
     [ProducesResponseType(typeof(Result<DocumentResponseDto>), StatusCodes.Status200OK)]

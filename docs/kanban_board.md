@@ -204,11 +204,28 @@
   - [x] `GET /api/documents/{id}/versions`: Listado completo del historial de versiones y hashes criptográficos
   - [x] Swagger UI configurado con esquemas de request/response, descripciones y comentarios XML funcionales
 
+### [LEX-304] Middleware de Autenticación JWT y Auditoría Automática
+- **Capa Onion**: `Presentation (Server) / Application / Persistence`
+- **Fase / Sprint**: `Fase 3: Casos de Uso (Seguridad y Auditoría)`
+- **Estado**: `Done` ✅
+- **Prioridad**: `Crítica`
+- **Story Points (Fibonacci)**: `3`
+- **Asignado a**: `Backend Architect (.NET 8) — Core / API`
+- **Declaración de Historia de Usuario**:
+  > *Como Administrador de Seguridad, quiero que la API valide tokens JWT Bearer, extraiga la identidad e IP del usuario y audite automáticamente todas las consultas y descargas de documentos en la tabla AuditLogs, para garantizar la trazabilidad y la integridad de los accesos a los expedientes.*
+- **Notas Técnicas & Especificaciones de Arquitectura**:
+  > *Autenticación JWT Bearer en Program.cs con validación completa (Issuer, Audience, Lifetime, Signing Key). Configuración de Swagger con esquema Bearer. CurrentUserService en Server implementando ICurrentUserService para extraer sub, name, roles y cabecera X-Forwarded-For. AuditLogMiddleware registrando acciones Viewed y Downloaded con UnitOfWork en la base de datos SQL Server. Roles restringidos [Authorize(Roles = "Registro,Admin,Auditor")] y mutaciones para [Authorize(Roles = "Registro,Admin")].*
+- **Criterios de Aceptación (Definition of Done)**:
+  - [x] Configurar autenticación JWT Bearer en `Program.cs` con validación de Issuer, Audience, Lifetime y Signing Key.
+  - [x] Implementar `CurrentUserService` extrayendo Claims (`Sub`, `Role`/`Roles`, `Name`) y capturando IP real (`X-Forwarded-For`).
+  - [x] Middleware personalizado `AuditLogMiddleware` para registrar eventos críticos (consultas/visualizaciones `Viewed` y descargas `Downloaded`) en la tabla `AuditLogs`.
+  - [x] Políticas de autorización `[Authorize(Roles = "Registro,Admin,Auditor")]` en `DocumentsController` con roles restringidos para mutación (`Registro,Admin`).
+
 ---
 
 ## 📋 Backlog (Próximas Historias)
 
 | ID | Título | Capa Onion | Prioridad | Estado |
 |---|---|---|---|---|
-| **LEX-304** | Middleware de Excepciones Globales (RFC 7807) & Manejo de Errores | `Server` | Crítica | To Do |
-| **LEX-305** | Autenticación JWT, Refresh Tokens & Políticas de Autorización | `Server / Persistence` | Crítica | To Do |
+| **LEX-305** | Middleware de Excepciones Globales (RFC 7807) & Manejo de Errores | `Server` | Crítica | To Do |
+| **LEX-306** | Generación de Tokens JWT, Refresh Tokens & Endpoint de Login | `Server / Persistence` | Crítica | To Do |

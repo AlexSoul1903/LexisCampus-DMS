@@ -1,7 +1,12 @@
 using System.Reflection;
+using System.Text;
 using LexisCampusDMS.Application;
+using LexisCampusDMS.Application.Options;
 using LexisCampusDMS.Infraestructure.Persistence;
 using LexisCampusDMS.Infraestructure.Shared;
+using LexisCampusDMS.Server.Middlewares;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,6 +19,40 @@ builder.Services.AddSharedInfrastructure(builder.Configuration);
 // Presentation / Server dependencies
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<LexisCampusDMS.Application.Interfaces.ICurrentUserService, LexisCampusDMS.Server.Services.CurrentUserService>();
+
+// JWT Authentication Configuration
+var jwtSection = builder.Configuration.GetSection(JwtOptions.SectionName);
+builder.Services.Configure<JwtOptions>(jwtSection);
+var jwtOptions = jwtSection.Get<JwtOptions>() ?? new JwtOptions
+{
+    Secret = "LexisCampusDMS_SuperSecretKey_2026_Minimum256BitsRequired!",
+    Issuer = "LexisCampusDMS",
+    Audience = "LexisCampusDMS.Clients"
+};
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.RequireHttpsMetadata = false;
+    options.SaveToken = true;
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtOptions.Issuer,
+        ValidAudience = jwtOptions.Audience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Secret)),
+        ClockSkew = TimeSpan.Zero
+    };
+});
+
+builder.Services.AddAuthorization();
 
 // Add services to the container.
 builder.Services.AddControllers();
@@ -30,6 +69,32 @@ builder.Services.AddSwaggerGen(options =>
         {
             Name = "Equipo de Desarrollo LexisCampus DMS",
             Email = "alexmanuel18frias@gmail.com"
+        }
+    });
+
+    // JWT Bearer documentation for Swagger UI
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "Autenticación JWT usando el esquema Bearer. Ingrese 'Bearer' [espacio] y luego su token en el campo de texto.\r\n\r\nEjemplo: \"Bearer eyJhbGciOiJIUzI1NiIsIn...\"",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer",
+        BearerFormat = "JWT"
+    });
+
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
         }
     });
 
@@ -62,7 +127,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
 app.UseAuthorization();
+
+// AuditLogMiddleware: Captures real IP (X-Forwarded-For) and automatically audits document operations
+app.UseMiddleware<AuditLogMiddleware>();
 
 app.MapControllers();
 

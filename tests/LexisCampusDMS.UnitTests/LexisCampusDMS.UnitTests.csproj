@@ -23,6 +23,11 @@
     <ProjectReference Include="..\..\LexisCampusDMS.Core.Domain\LexisCampusDMS.Core.Domain.csproj" />
     <ProjectReference Include="..\..\LexisCampusDMS.Application\LexisCampusDMS.Application.csproj" />
     <ProjectReference Include="..\..\LexisCampusDMS.Infraestructure.Shared\LexisCampusDMS.Infraestructure.Shared.csproj" />
+    <ProjectReference Include="..\..\LexisCampusDMS.Server\LexisCampusDMS.Server.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
 </Project>
