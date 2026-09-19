@@ -6,5 +6,6 @@ public enum DocumentStatus
     PendingReview = 2,
     Approved = 3,
     Rejected = 4,
-    Archived = 5
+    Archived = 5,
+    Revoked = 6
 }

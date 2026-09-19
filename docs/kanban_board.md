@@ -243,9 +243,28 @@
 
 ---
 
+### [LEX-306] Flujo de Anulación y Revocación Legal de Documentos
+- **Capa Onion**: `Application (Casos de Uso) / Domain / Server / Persistence`
+- **Fase / Sprint**: `Fase 3: Casos de Uso (Revocación y Verificación)`
+- **Estado**: `Done` ✅
+- **Prioridad**: `Alta`
+- **Story Points (Fibonacci)**: `3`
+- **Asignado a**: `Backend Architect (.NET 8) — Core / API`
+- **Declaración de Historia de Usuario**:
+  > *Como Supervisor de Registro, quiero anular un documento emitido incorrectamente especificando el número de resolución y motivo legal, para invalidarlo jurídicamente preservando su historial forense.*
+- **Notas Técnicas & Especificaciones de Arquitectura**:
+  > *Restringir ejecución del comando a los roles estándar autorizados [Authorize(Roles = "Admin,Registro")]. Actualización atómica de DocumentStatus a Revoked sin borrar archivos binarios en MinIO ni registros en DocumentVersions. Endpoint público de verificación GET /api/documents/{id}/verify con [AllowAnonymous] que retorna estado REVOCADO con WarningSeal descriptivo. Registro obligatorio de auditoría en AuditLog con AuditAction.DocumentRevoked y justificación legal.*
+- **Criterios de Aceptación (Definition of Done)**:
+  - [x] Endpoint `POST /api/documents/{id}/revoke` con DTO `RevokeDocumentDto` (`Motivo`/`Reason`, `NumeroResolucion`/`ResolutionNumber`, `Observaciones`/`Observations`)
+  - [x] Actualizar `DocumentStatus` a `"Anulado"` / `"Revoked"` sin eliminar registros ni archivos binarios en MinIO
+  - [x] Integrar con endpoint público de verificación (`GET /api/documents/{id}/verify`) para retornar estado `"REVOCADO"` con sello de advertencia
+  - [x] Registrar entrada obligatoria en `AuditLog` con acción `"DOCUMENT_REVOKED"` y justificación jurídica
+
+---
+
 ## 📋 Backlog (Próximas Historias)
 
 | ID | Título | Capa Onion | Prioridad | Estado |
 |---|---|---|---|---|
-| **LEX-306** | Middleware de Excepciones Globales (RFC 7807) & Manejo de Errores | `Server` | Crítica | To Do |
-| **LEX-307** | Endpoint de Registro / Alta de Usuarios y Gestión de Roles | `Server / Application` | Alta | To Do |
+| **LEX-307** | Middleware de Excepciones Globales (RFC 7807) & Manejo de Errores | `Server` | Crítica | To Do |
+| **LEX-308** | Endpoint de Registro / Alta de Usuarios y Gestión de Roles | `Server / Application` | Alta | To Do |

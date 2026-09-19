@@ -14,5 +14,10 @@ public record DocumentResponseDto
     public DateTime CreatedAtUtc { get; init; }
     public string CurrentFileHash { get; init; } = string.Empty;
     public string CreatedBy { get; init; } = string.Empty;
+    public string? ResolutionNumber { get; init; }
+    public string? RevocationReason { get; init; }
+    public string? RevocationObservations { get; init; }
+    public DateTime? RevokedAtUtc { get; init; }
+    public string? RevokedBy { get; init; }
     public IReadOnlyList<DocumentVersionDto>? Versions { get; init; }
 }

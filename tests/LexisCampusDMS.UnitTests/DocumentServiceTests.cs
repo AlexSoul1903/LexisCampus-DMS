@@ -620,4 +620,192 @@ public class DocumentServiceTests
         Assert.False(result.IsSuccess);
         Assert.Equal("DOCUMENT_NOT_FOUND", result.ErrorCode);
     }
+
+    [Fact]
+    public async Task RevokeDocumentAsync_ValidRequest_RevokesDocumentAndCreatesAuditLog()
+    {
+        // Arrange
+        var docId = Guid.NewGuid();
+        var doc = new Document("Título de Prueba", "2023-9999", DocumentType.StudyCertificate, "user1");
+        doc.AddNewVersion("p1", "hash1", 500, "application/pdf", "user1");
+
+        _documentRepoMock
+            .Setup(r => r.GetWithDetailsAsync(docId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(doc);
+
+        AuditLog? capturedAudit = null;
+        _auditRepoMock
+            .Setup(a => a.AddAsync(It.IsAny<AuditLog>(), It.IsAny<CancellationToken>()))
+            .Callback<AuditLog, CancellationToken>((log, _) => capturedAudit = log)
+            .ReturnsAsync((AuditLog l, CancellationToken _) => l);
+
+        var request = new RevokeDocumentDto
+        {
+            ResolutionNumber = "RES-2026-0042",
+            Reason = "Error involuntario en asignación de calificaciones.",
+            Observations = "Expediente remitido a Consejo Académico."
+        };
+
+        // Act
+        var result = await _documentService.RevokeDocumentAsync(docId, request);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(DocumentStatus.Revoked, doc.Status);
+        Assert.Equal("RES-2026-0042", doc.ResolutionNumber);
+        Assert.Equal("Error involuntario en asignación de calificaciones.", doc.RevocationReason);
+        Assert.NotNull(doc.RevokedAtUtc);
+
+        _documentRepoMock.Verify(r => r.Update(doc), Times.Once);
+        _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+
+        Assert.NotNull(capturedAudit);
+        Assert.Equal(AuditAction.DocumentRevoked, capturedAudit!.Action);
+        Assert.Contains("RES-2026-0042", capturedAudit.Details);
+        Assert.Contains("Error involuntario", capturedAudit.Details);
+    }
+
+    [Fact]
+    public async Task RevokeDocumentAsync_AlreadyRevoked_ReturnsValidationError()
+    {
+        // Arrange
+        var docId = Guid.NewGuid();
+        var doc = new Document("Documento Ya Anulado", "2023-9999", DocumentType.StudyCertificate, "user1");
+        doc.Revoke("RES-001", "Motivo inicial", null, "admin");
+
+        _documentRepoMock
+            .Setup(r => r.GetWithDetailsAsync(docId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(doc);
+
+        var request = new RevokeDocumentDto
+        {
+            ResolutionNumber = "RES-002",
+            Reason = "Segundo intento"
+        };
+
+        // Act
+        var result = await _documentService.RevokeDocumentAsync(docId, request);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal("DOCUMENT_ALREADY_REVOKED", result.ErrorCode);
+        _documentRepoMock.Verify(r => r.Update(It.IsAny<Document>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RevokeDocumentAsync_NonExistentDocument_ReturnsNotFound()
+    {
+        // Arrange
+        var docId = Guid.NewGuid();
+        _documentRepoMock
+            .Setup(r => r.GetWithDetailsAsync(docId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Document?)null);
+
+        var request = new RevokeDocumentDto
+        {
+            ResolutionNumber = "RES-001",
+            Reason = "Motivo"
+        };
+
+        // Act
+        var result = await _documentService.RevokeDocumentAsync(docId, request);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal("DOCUMENT_NOT_FOUND", result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task RevokeDocumentAsync_MissingResolutionOrReason_ReturnsValidationError()
+    {
+        // Arrange
+        var request = new RevokeDocumentDto
+        {
+            ResolutionNumber = "",
+            Reason = ""
+        };
+
+        // Act
+        var result = await _documentService.RevokeDocumentAsync(Guid.NewGuid(), request);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal("VALIDATION_ERROR", result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task VerifyDocumentAsync_RevokedDocument_ReturnsRevokedStatusWithWarningSeal()
+    {
+        // Arrange
+        var docId = Guid.NewGuid();
+        var doc = new Document("Acta de Grado", "2022-5555", DocumentType.Degree, "admin");
+        doc.AddNewVersion("storage/degree.pdf", "hash_degree_sha256", 2048, "application/pdf", "admin");
+        doc.Revoke("RES-DIR-999", "Falsedad ideológica en documentos de soporte", "Proceso disciplinario 102", "admin");
+
+        _documentRepoMock
+            .Setup(r => r.GetWithDetailsAsync(docId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(doc);
+
+        // Act
+        var result = await _documentService.VerifyDocumentAsync(docId);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        Assert.Equal("REVOCADO", result.Data.Status);
+        Assert.True(result.Data.IsRevoked);
+        Assert.False(result.Data.IsValid);
+        Assert.NotNull(result.Data.WarningSeal);
+        Assert.Contains("⚠️ DOCUMENTO REVOCADO", result.Data.WarningSeal!);
+        Assert.Contains("RES-DIR-999", result.Data.WarningSeal);
+        Assert.Equal("hash_degree_sha256", result.Data.CurrentFileHash);
+    }
+
+    [Fact]
+    public async Task VerifyDocumentAsync_ActiveDocument_ReturnsValidStatusWithoutWarningSeal()
+    {
+        // Arrange
+        var docId = Guid.NewGuid();
+        var doc = new Document("Certificado Auténtico", "2022-5555", DocumentType.StudyCertificate, "admin")
+        {
+            Status = DocumentStatus.Approved
+        };
+        doc.AddNewVersion("storage/cert.pdf", "hash_valid_sha256", 1024, "application/pdf", "admin");
+
+        _documentRepoMock
+            .Setup(r => r.GetWithDetailsAsync(docId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(doc);
+
+        // Act
+        var result = await _documentService.VerifyDocumentAsync(docId);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        Assert.Equal("APPROVED", result.Data.Status);
+        Assert.False(result.Data.IsRevoked);
+        Assert.True(result.Data.IsValid);
+        Assert.Null(result.Data.WarningSeal);
+        Assert.Equal("hash_valid_sha256", result.Data.CurrentFileHash);
+    }
+
+    [Fact]
+    public async Task VerifyDocumentAsync_NonExistentDocument_ReturnsNotFound()
+    {
+        // Arrange
+        var docId = Guid.NewGuid();
+        _documentRepoMock
+            .Setup(r => r.GetWithDetailsAsync(docId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Document?)null);
+
+        // Act
+        var result = await _documentService.VerifyDocumentAsync(docId);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal("DOCUMENT_NOT_FOUND", result.ErrorCode);
+    }
 }

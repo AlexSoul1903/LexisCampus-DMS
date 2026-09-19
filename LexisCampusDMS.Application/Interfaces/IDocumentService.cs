@@ -33,4 +33,13 @@ public interface IDocumentService
     Task<Result<IReadOnlyList<DocumentVersionDto>>> GetVersionsAsync(
         Guid documentId, 
         CancellationToken cancellationToken = default);
+
+    Task<Result<DocumentResponseDto>> RevokeDocumentAsync(
+        Guid documentId, 
+        RevokeDocumentDto request, 
+        CancellationToken cancellationToken = default);
+
+    Task<Result<DocumentVerificationResponseDto>> VerifyDocumentAsync(
+        Guid documentId, 
+        CancellationToken cancellationToken = default);
 }

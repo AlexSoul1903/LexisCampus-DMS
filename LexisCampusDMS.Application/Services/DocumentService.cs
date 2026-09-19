@@ -563,4 +563,131 @@ public class DocumentService : IDocumentService
             versionDtos,
             $"Historial de versiones recuperado exitosamente ({versionDtos.Count} versiones encontradas).");
     }
+
+    public async Task<Result<DocumentResponseDto>> RevokeDocumentAsync(
+        Guid documentId, 
+        RevokeDocumentDto request, 
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request, nameof(request));
+
+        if (string.IsNullOrWhiteSpace(request.ResolutionNumber) || string.IsNullOrWhiteSpace(request.Reason))
+        {
+            return Result<DocumentResponseDto>.Failure(
+                "El número de resolución y el motivo legal de anulación son obligatorios.",
+                "VALIDATION_ERROR");
+        }
+
+        var document = await _documentRepository.GetWithDetailsAsync(documentId, cancellationToken);
+        if (document is null)
+        {
+            return Result<DocumentResponseDto>.Failure(
+                $"El documento con ID '{documentId}' no fue encontrado.",
+                "DOCUMENT_NOT_FOUND");
+        }
+
+        if (document.Status == DocumentStatus.Revoked)
+        {
+            return Result<DocumentResponseDto>.Failure(
+                $"El documento '{document.Title}' ya fue anulado/revocado previamente mediante Resolución N° '{document.ResolutionNumber}'.",
+                "DOCUMENT_ALREADY_REVOKED");
+        }
+
+        var currentUserId = string.IsNullOrWhiteSpace(_currentUserService.UserId) ? "System" : _currentUserService.UserId;
+        var currentUserIp = _currentUserService.IpAddress;
+
+        // Perform revocation in domain entity (without deleting MinIO files or versions)
+        document.Revoke(request.ResolutionNumber, request.Reason, request.Observations, currentUserId);
+
+        // Record mandatory audit log with justification
+        var auditLog = new AuditLog(
+            currentUserId,
+            AuditAction.DocumentRevoked,
+            document.Id,
+            currentUserIp,
+            $"DOCUMENT_REVOKED: Documento '{document.Title}' (ID: {document.Id}) anulado legalmente bajo Resolución N° '{document.ResolutionNumber}'. Motivo: '{document.RevocationReason}'. Observaciones: '{document.RevocationObservations ?? "N/A"}'.");
+
+        _documentRepository.Update(document);
+        await _unitOfWork.Repository<AuditLog, Guid>().AddAsync(auditLog, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        _logger.LogWarning(
+            "Document '{DocumentId}' legally REVOKED by user '{UserId}' under Resolution '{ResolutionNumber}'. Reason: '{Reason}'",
+            document.Id,
+            currentUserId,
+            document.ResolutionNumber,
+            document.RevocationReason);
+
+        var latestVersion = document.Versions.OrderByDescending(v => v.VersionNumber).FirstOrDefault();
+        var responseDto = new DocumentResponseDto
+        {
+            Id = document.Id,
+            Title = document.Title,
+            StudentRegistration = document.StudentRegistration,
+            DocumentType = document.DocumentType,
+            Status = document.Status,
+            CurrentVersion = document.CurrentVersion,
+            CreatedAtUtc = document.CreatedAtUtc,
+            CurrentFileHash = latestVersion?.FileHashSha256 ?? string.Empty,
+            CreatedBy = document.CreatedBy,
+            ResolutionNumber = document.ResolutionNumber,
+            RevocationReason = document.RevocationReason,
+            RevocationObservations = document.RevocationObservations,
+            RevokedAtUtc = document.RevokedAtUtc,
+            RevokedBy = document.RevokedBy
+        };
+
+        return Result<DocumentResponseDto>.Success(
+            responseDto,
+            $"Documento '{document.Title}' anulado y revocado legalmente con éxito.");
+    }
+
+    public async Task<Result<DocumentVerificationResponseDto>> VerifyDocumentAsync(
+        Guid documentId, 
+        CancellationToken cancellationToken = default)
+    {
+        var document = await _documentRepository.GetWithDetailsAsync(documentId, cancellationToken);
+        if (document is null)
+        {
+            return Result<DocumentVerificationResponseDto>.Failure(
+                $"El documento con ID '{documentId}' no fue encontrado en los registros institucionales.",
+                "DOCUMENT_NOT_FOUND");
+        }
+
+        var latestVersion = document.Versions.OrderByDescending(v => v.VersionNumber).FirstOrDefault();
+        var isRevoked = document.Status == DocumentStatus.Revoked;
+
+        string? warningSeal = null;
+        if (isRevoked)
+        {
+            warningSeal = $"⚠️ DOCUMENTO REVOCADO: Este documento académico ha sido ANULADO/REVOCADO formalmente mediante Resolución N° '{document.ResolutionNumber}' con fecha {document.RevokedAtUtc:yyyy-MM-dd HH:mm:ss} UTC. Motivo: {document.RevocationReason}. Carece de toda validez legal o académica institucional.";
+        }
+
+        var verificationDto = new DocumentVerificationResponseDto
+        {
+            DocumentId = document.Id,
+            Title = document.Title,
+            StudentRegistration = document.StudentRegistration,
+            DocumentType = document.DocumentType.ToString(),
+            Status = isRevoked ? "REVOCADO" : document.Status.ToString().ToUpperInvariant(),
+            IsRevoked = isRevoked,
+            IsValid = !isRevoked,
+            WarningSeal = warningSeal,
+            ResolutionNumber = document.ResolutionNumber,
+            RevocationReason = document.RevocationReason,
+            RevocationObservations = document.RevocationObservations,
+            RevokedAtUtc = document.RevokedAtUtc,
+            RevokedBy = document.RevokedBy,
+            CurrentVersion = document.CurrentVersion,
+            CurrentFileHash = latestVersion?.FileHashSha256 ?? string.Empty,
+            CreatedAtUtc = document.CreatedAtUtc,
+            VerificationTimestampUtc = DateTime.UtcNow
+        };
+
+        return Result<DocumentVerificationResponseDto>.Success(
+            verificationDto,
+            isRevoked 
+                ? "Atención: El documento consultado se encuentra formalmente REVOCADO." 
+                : "Documento verificado exitosamente en los registros institucionales.");
+    }
 }

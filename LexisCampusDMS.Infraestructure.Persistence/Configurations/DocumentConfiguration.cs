@@ -45,6 +45,21 @@ public class DocumentConfiguration : IEntityTypeConfiguration<Document>
             .IsRequired()
             .HasDefaultValue(false);
 
+        // Legal Revocation properties
+        builder.Property(d => d.ResolutionNumber)
+            .HasMaxLength(100);
+
+        builder.Property(d => d.RevocationReason)
+            .HasMaxLength(1000);
+
+        builder.Property(d => d.RevocationObservations)
+            .HasMaxLength(2000);
+
+        builder.Property(d => d.RevokedAtUtc);
+
+        builder.Property(d => d.RevokedBy)
+            .HasMaxLength(100);
+
         // Soft-delete global query filter
         builder.HasQueryFilter(d => !d.IsDeleted);
 
@@ -60,6 +75,9 @@ public class DocumentConfiguration : IEntityTypeConfiguration<Document>
 
         builder.HasIndex(d => d.Status)
             .HasDatabaseName("IX_Documents_Status");
+
+        builder.HasIndex(d => d.ResolutionNumber)
+            .HasDatabaseName("IX_Documents_ResolutionNumber");
 
         // Relationships
         builder.HasMany(d => d.Versions)

@@ -293,4 +293,63 @@ public class DocumentsController : ControllerBase
 
         return File(result.Data.Content, result.Data.ContentType, enableRangeProcessing: true);
     }
+
+    /// <summary>
+    /// Legally revokes and annuls an existing document with mandatory resolution number and legal reason.
+    /// Preserves binary files in storage and historical forensic audit trail.
+    /// </summary>
+    /// <param name="id">Document unique identifier.</param>
+    /// <param name="request">Revocation metadata (Reason, ResolutionNumber, Observations).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <response code="200">Document successfully revoked and marked as Revoked.</response>
+    /// <response code="400">Validation error or invalid input parameters.</response>
+    /// <response code="404">Document not found.</response>
+    [HttpPost("{id:guid}/revoke")]
+    [Authorize(Roles = "Admin,Registro")]
+    [ProducesResponseType(typeof(Result<DocumentResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Result<DocumentResponseDto>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(Result<DocumentResponseDto>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Revoke(
+        Guid id, 
+        [FromBody] RevokeDocumentDto request, 
+        CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            return BadRequest(Result<DocumentResponseDto>.Failure(
+                "Debe proporcionar los datos legales para la revocación.",
+                "INVALID_INPUT"));
+        }
+
+        var result = await _documentService.RevokeDocumentAsync(id, request, cancellationToken);
+        if (!result.IsSuccess)
+        {
+            return result.ErrorCode == "DOCUMENT_NOT_FOUND" ? NotFound(result) : BadRequest(result);
+        }
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Public verification endpoint that certifies document authenticity or emits a legal revocation warning seal.
+    /// Accessible without authentication for external institutional verifications (e.g. via QR code).
+    /// </summary>
+    /// <param name="id">Document unique identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <response code="200">Document verification status retrieved.</response>
+    /// <response code="404">Document not found in institutional records.</response>
+    [HttpGet("{id:guid}/verify")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(Result<DocumentVerificationResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Result<DocumentVerificationResponseDto>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Verify(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _documentService.VerifyDocumentAsync(id, cancellationToken);
+        if (!result.IsSuccess)
+        {
+            return NotFound(result);
+        }
+
+        return Ok(result);
+    }
 }

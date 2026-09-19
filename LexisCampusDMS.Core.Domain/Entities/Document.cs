@@ -12,6 +12,13 @@ public class Document : AuditableEntity<Guid>
     public DocumentStatus Status { get; set; } = DocumentStatus.Draft;
     public int CurrentVersion { get; set; } = 1;
 
+    // Legal Revocation & Annulment fields
+    public string? ResolutionNumber { get; set; }
+    public string? RevocationReason { get; set; }
+    public string? RevocationObservations { get; set; }
+    public DateTime? RevokedAtUtc { get; set; }
+    public string? RevokedBy { get; set; }
+
     public ICollection<DocumentVersion> Versions { get; set; } = new List<DocumentVersion>();
     public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
 
@@ -98,6 +105,33 @@ public class Document : AuditableEntity<Guid>
         Status = newStatus;
         LastModifiedAtUtc = DateTime.UtcNow;
         LastModifiedBy = modifiedBy;
+    }
+
+    public void Revoke(string resolutionNumber, string reason, string? observations, string revokedBy)
+    {
+        if (Status == DocumentStatus.Revoked)
+        {
+            throw new DomainValidationException(nameof(Status), "El documento ya se encuentra anulado/revocado.");
+        }
+
+        if (string.IsNullOrWhiteSpace(resolutionNumber))
+        {
+            throw new DomainValidationException(nameof(resolutionNumber), "El número de resolución es obligatorio para anular el documento.");
+        }
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new DomainValidationException(nameof(reason), "El motivo legal de revocación es obligatorio.");
+        }
+
+        Status = DocumentStatus.Revoked;
+        ResolutionNumber = resolutionNumber.Trim();
+        RevocationReason = reason.Trim();
+        RevocationObservations = observations?.Trim();
+        RevokedAtUtc = DateTime.UtcNow;
+        RevokedBy = revokedBy;
+        LastModifiedAtUtc = DateTime.UtcNow;
+        LastModifiedBy = revokedBy;
     }
 
     public void SoftDelete(string deletedBy)

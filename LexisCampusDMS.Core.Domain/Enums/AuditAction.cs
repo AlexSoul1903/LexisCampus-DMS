@@ -11,5 +11,6 @@ public enum AuditAction
     HashVerified = 7,
     StatusChanged = 8,
     DocumentUploaded = 9,
-    DocumentRectified = 10
+    DocumentRectified = 10,
+    DocumentRevoked = 11
 }
