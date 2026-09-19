@@ -75,4 +75,49 @@ public class DocumentRepository : GenericRepository<Document, Guid>, IDocumentRe
             .OrderByDescending(v => v.VersionNumber)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<(IReadOnlyList<Document> Items, int TotalCount)> SearchAsync(
+        string? studentRegistration,
+        DocumentType? documentType,
+        DateTime? fromDateUtc,
+        DateTime? toDateUtc,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<Document> query = _dbSet
+            .AsNoTracking()
+            .Include(d => d.Versions);
+
+        if (!string.IsNullOrWhiteSpace(studentRegistration))
+        {
+            var reg = studentRegistration.Trim();
+            query = query.Where(d => d.StudentRegistration.Contains(reg));
+        }
+
+        if (documentType.HasValue)
+        {
+            query = query.Where(d => d.DocumentType == documentType.Value);
+        }
+
+        if (fromDateUtc.HasValue)
+        {
+            query = query.Where(d => d.CreatedAtUtc >= fromDateUtc.Value);
+        }
+
+        if (toDateUtc.HasValue)
+        {
+            query = query.Where(d => d.CreatedAtUtc <= toDateUtc.Value);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderByDescending(d => d.CreatedAtUtc)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
 }

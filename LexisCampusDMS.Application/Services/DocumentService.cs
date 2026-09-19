@@ -407,7 +407,60 @@ public class DocumentService : IDocumentService
         return Result<IReadOnlyList<DocumentResponseDto>>.Success(dtos);
     }
 
-    public async Task<Result<Stream>> DownloadDocumentAsync(
+    public async Task<PagedResult<DocumentResponseDto>> SearchAsync(
+        SearchFilterDto filter, 
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter, nameof(filter));
+
+        var pageNumber = filter.PageNumber <= 0 ? 1 : filter.PageNumber;
+        var pageSize = filter.PageSize <= 0 ? 10 : (filter.PageSize > 100 ? 100 : filter.PageSize);
+
+        var (items, totalCount) = await _documentRepository.SearchAsync(
+            filter.StudentRegistration,
+            filter.DocumentType,
+            filter.FromDateUtc,
+            filter.ToDateUtc,
+            pageNumber,
+            pageSize,
+            cancellationToken);
+
+        var dtos = items.Select(d =>
+        {
+            var latestVersion = d.Versions.OrderByDescending(v => v.VersionNumber).FirstOrDefault();
+            return new DocumentResponseDto
+            {
+                Id = d.Id,
+                Title = d.Title,
+                StudentRegistration = d.StudentRegistration,
+                DocumentType = d.DocumentType,
+                Status = d.Status,
+                CurrentVersion = d.CurrentVersion,
+                CreatedAtUtc = d.CreatedAtUtc,
+                CurrentFileHash = latestVersion?.FileHashSha256 ?? string.Empty,
+                CreatedBy = d.CreatedBy,
+                Versions = d.Versions.OrderByDescending(v => v.VersionNumber).Select(v => new DocumentVersionDto
+                {
+                    VersionNumber = v.VersionNumber,
+                    FileHash = v.FileHashSha256,
+                    FileSizeBytes = v.FileSize,
+                    CreatedAtUtc = v.CreatedAtUtc,
+                    UploadedBy = v.CreatedByUserId,
+                    MimeType = v.MimeType,
+                    StoragePath = v.StoragePath
+                }).ToList()
+            };
+        }).ToList();
+
+        return new PagedResult<DocumentResponseDto>(
+            dtos, 
+            totalCount, 
+            pageNumber, 
+            pageSize, 
+            "Búsqueda paginada completada exitosamente.");
+    }
+
+    public async Task<Result<DocumentDownloadDto>> DownloadDocumentAsync(
         Guid documentId, 
         int? versionNumber = null, 
         CancellationToken cancellationToken = default)
@@ -415,7 +468,7 @@ public class DocumentService : IDocumentService
         var document = await _documentRepository.GetWithDetailsAsync(documentId, cancellationToken);
         if (document is null)
         {
-            return Result<Stream>.Failure("El documento especificado no existe.", "DOCUMENT_NOT_FOUND");
+            return Result<DocumentDownloadDto>.Failure("El documento especificado no existe.", "DOCUMENT_NOT_FOUND");
         }
 
         var version = versionNumber.HasValue
@@ -424,7 +477,7 @@ public class DocumentService : IDocumentService
 
         if (version is null)
         {
-            return Result<Stream>.Failure("La versión solicitada del documento no existe.", "VERSION_NOT_FOUND");
+            return Result<DocumentDownloadDto>.Failure("La versión solicitada del documento no existe.", "VERSION_NOT_FOUND");
         }
 
         try
@@ -443,12 +496,71 @@ public class DocumentService : IDocumentService
             await _unitOfWork.Repository<AuditLog, Guid>().AddAsync(auditLog, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            return Result<Stream>.Success(stream);
+            // Extract user-friendly filename from storage key
+            var rawFileName = Path.GetFileName(version.StoragePath);
+            var friendlyFileName = rawFileName;
+            if (friendlyFileName.StartsWith($"v{version.VersionNumber}_", StringComparison.OrdinalIgnoreCase))
+            {
+                friendlyFileName = friendlyFileName.Substring($"v{version.VersionNumber}_".Length);
+            }
+            if (!string.IsNullOrEmpty(version.FileHashSha256) && friendlyFileName.StartsWith($"{version.FileHashSha256}_", StringComparison.OrdinalIgnoreCase))
+            {
+                friendlyFileName = friendlyFileName.Substring(version.FileHashSha256.Length + 1);
+            }
+            else
+            {
+                var underscoreIndex = friendlyFileName.IndexOf('_');
+                if (underscoreIndex >= 0 && underscoreIndex + 1 < friendlyFileName.Length)
+                {
+                    friendlyFileName = friendlyFileName.Substring(underscoreIndex + 1);
+                }
+            }
+
+            var downloadDto = new DocumentDownloadDto
+            {
+                Content = stream,
+                FileName = friendlyFileName,
+                ContentType = string.IsNullOrWhiteSpace(version.MimeType) ? "application/octet-stream" : version.MimeType,
+                FileSize = version.FileSize,
+                VersionNumber = version.VersionNumber
+            };
+
+            return Result<DocumentDownloadDto>.Success(downloadDto);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error downloading document '{DocumentId}' version '{Version}'", documentId, version.VersionNumber);
-            return Result<Stream>.Failure("Error al recuperar el archivo desde el almacenamiento.", "STORAGE_DOWNLOAD_ERROR");
+            return Result<DocumentDownloadDto>.Failure("Error al recuperar el archivo desde el almacenamiento.", "STORAGE_DOWNLOAD_ERROR");
         }
+    }
+
+    public async Task<Result<IReadOnlyList<DocumentVersionDto>>> GetVersionsAsync(
+        Guid documentId, 
+        CancellationToken cancellationToken = default)
+    {
+        var document = await _documentRepository.GetWithDetailsAsync(documentId, cancellationToken);
+        if (document is null)
+        {
+            return Result<IReadOnlyList<DocumentVersionDto>>.Failure(
+                $"El documento con ID '{documentId}' no fue encontrado.",
+                "DOCUMENT_NOT_FOUND");
+        }
+
+        var versionDtos = document.Versions
+            .OrderByDescending(v => v.VersionNumber)
+            .Select(v => new DocumentVersionDto
+            {
+                VersionNumber = v.VersionNumber,
+                FileHash = v.FileHashSha256,
+                FileSizeBytes = v.FileSize,
+                CreatedAtUtc = v.CreatedAtUtc,
+                UploadedBy = v.CreatedByUserId,
+                MimeType = v.MimeType,
+                StoragePath = v.StoragePath
+            }).ToList();
+
+        return Result<IReadOnlyList<DocumentVersionDto>>.Success(
+            versionDtos,
+            $"Historial de versiones recuperado exitosamente ({versionDtos.Count} versiones encontradas).");
     }
 }

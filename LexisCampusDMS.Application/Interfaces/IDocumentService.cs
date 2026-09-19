@@ -21,8 +21,16 @@ public interface IDocumentService
         string studentRegistration, 
         CancellationToken cancellationToken = default);
 
-    Task<Result<Stream>> DownloadDocumentAsync(
+    Task<PagedResult<DocumentResponseDto>> SearchAsync(
+        SearchFilterDto filter, 
+        CancellationToken cancellationToken = default);
+
+    Task<Result<DocumentDownloadDto>> DownloadDocumentAsync(
         Guid documentId, 
         int? versionNumber = null, 
+        CancellationToken cancellationToken = default);
+
+    Task<Result<IReadOnlyList<DocumentVersionDto>>> GetVersionsAsync(
+        Guid documentId, 
         CancellationToken cancellationToken = default);
 }

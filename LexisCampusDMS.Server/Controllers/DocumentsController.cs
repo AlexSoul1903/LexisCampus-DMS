@@ -1,6 +1,7 @@
 using LexisCampusDMS.Application.Common;
 using LexisCampusDMS.Application.DTOs;
 using LexisCampusDMS.Application.Interfaces;
+using LexisCampusDMS.Core.Domain.Enums;
 using LexisCampusDMS.Server.Models;
 using Microsoft.AspNetCore.Mvc;
 
@@ -196,15 +197,84 @@ public class DocumentsController : ControllerBase
     }
 
     /// <summary>
+    /// Searches and filters documents with pagination by student registration, document type, and date range.
+    /// </summary>
+    /// <param name="matricula">Student registration number (Spanish parameter alias).</param>
+    /// <param name="studentRegistration">Student registration number.</param>
+    /// <param name="tipo">Document type enum (Spanish parameter alias).</param>
+    /// <param name="documentType">Document type enum.</param>
+    /// <param name="fromDateUtc">Filter documents created on or after this UTC date.</param>
+    /// <param name="toDateUtc">Filter documents created on or before this UTC date.</param>
+    /// <param name="pageNumber">Page number (default: 1).</param>
+    /// <param name="pageSize">Page size (default: 10, max: 100).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Paged result containing documents matching criteria.</returns>
+    [HttpGet("search")]
+    [ProducesResponseType(typeof(PagedResult<DocumentResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Search(
+        [FromQuery(Name = "matricula")] string? matricula,
+        [FromQuery(Name = "studentRegistration")] string? studentRegistration,
+        [FromQuery(Name = "tipo")] DocumentType? tipo,
+        [FromQuery(Name = "documentType")] DocumentType? documentType,
+        [FromQuery] DateTime? fromDateUtc,
+        [FromQuery] DateTime? toDateUtc,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        var effectiveRegistration = !string.IsNullOrWhiteSpace(matricula) ? matricula : studentRegistration;
+        var effectiveType = tipo ?? documentType;
+
+        var filter = new SearchFilterDto
+        {
+            StudentRegistration = effectiveRegistration,
+            DocumentType = effectiveType,
+            FromDateUtc = fromDateUtc,
+            ToDateUtc = toDateUtc,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
+
+        var result = await _documentService.SearchAsync(filter, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Retrieves the complete version history, metadata, and cryptographic hashes for a document.
+    /// </summary>
+    /// <param name="id">Document unique identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    [HttpGet("{id:guid}/versions")]
+    [ProducesResponseType(typeof(Result<IReadOnlyList<DocumentVersionDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Result<IReadOnlyList<DocumentVersionDto>>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetVersions(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _documentService.GetVersionsAsync(id, cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return NotFound(result);
+        }
+
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Downloads the binary content of a document (optionally for a specific version).
     /// </summary>
+    /// <param name="id">Document unique identifier.</param>
+    /// <param name="versionNumber">Optional specific version number (defaults to latest version).</param>
+    /// <param name="inline">True to display inline in browser; false (default) for attachment download.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     [HttpGet("{id:guid}/download")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(Result), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Download(
         Guid id, 
         [FromQuery] int? versionNumber, 
-        CancellationToken cancellationToken)
+        [FromQuery] bool inline = false,
+        CancellationToken cancellationToken = default)
     {
         var result = await _documentService.DownloadDocumentAsync(id, versionNumber, cancellationToken);
 
@@ -213,6 +283,9 @@ public class DocumentsController : ControllerBase
             return NotFound(result);
         }
 
-        return File(result.Data!, "application/octet-stream", enableRangeProcessing: true);
+        var disposition = inline ? "inline" : "attachment";
+        Response.Headers.Append("Content-Disposition", $"{disposition}; filename=\"{result.Data!.FileName}\"");
+
+        return File(result.Data.Content, result.Data.ContentType, enableRangeProcessing: true);
     }
 }

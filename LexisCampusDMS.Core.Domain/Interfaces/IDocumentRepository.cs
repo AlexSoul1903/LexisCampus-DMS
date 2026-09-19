@@ -11,4 +11,12 @@ public interface IDocumentRepository : IGenericRepository<Document, Guid>
     Task<IReadOnlyList<Document>> GetByStudentRegistrationAsync(string studentRegistration, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Document>> GetByStatusAsync(DocumentStatus status, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<DocumentVersion>> GetVersionsAsync(Guid documentId, CancellationToken cancellationToken = default);
+    Task<(IReadOnlyList<Document> Items, int TotalCount)> SearchAsync(
+        string? studentRegistration,
+        DocumentType? documentType,
+        DateTime? fromDateUtc,
+        DateTime? toDateUtc,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default);
 }

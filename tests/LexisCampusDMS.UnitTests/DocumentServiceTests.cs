@@ -469,4 +469,155 @@ public class DocumentServiceTests
         // Verify compensation: deleted uploaded MinIO object
         _storageServiceMock.Verify(s => s.DeleteFileAsync(uploadedPath, It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task SearchAsync_ValidFilter_ReturnsPagedResult()
+    {
+        // Arrange
+        var doc1 = new Document("Doc 1", "2023-0001", DocumentType.Transcript, "usr");
+        doc1.AddNewVersion("p1", "h1", 100, "application/pdf", "usr");
+        var doc2 = new Document("Doc 2", "2023-0002", DocumentType.Transcript, "usr");
+        doc2.AddNewVersion("p2", "h2", 200, "application/pdf", "usr");
+
+        var pagedItems = (IReadOnlyList<Document>)new List<Document> { doc1, doc2 };
+        _documentRepoMock
+            .Setup(r => r.SearchAsync(
+                "2023", 
+                DocumentType.Transcript, 
+                null, 
+                null, 
+                1, 
+                10, 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((pagedItems, 25));
+
+        var filter = new SearchFilterDto
+        {
+            StudentRegistration = "2023",
+            DocumentType = DocumentType.Transcript,
+            PageNumber = 1,
+            PageSize = 10
+        };
+
+        // Act
+        var result = await _documentService.SearchAsync(filter);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, result.PageNumber);
+        Assert.Equal(10, result.PageSize);
+        Assert.Equal(25, result.TotalCount);
+        Assert.Equal(3, result.TotalPages);
+        Assert.False(result.HasPreviousPage);
+        Assert.True(result.HasNextPage);
+        Assert.Equal(2, result.Data!.Count);
+    }
+
+    [Fact]
+    public async Task SearchAsync_InvalidPagination_CorrectsToDefaults()
+    {
+        // Arrange
+        _documentRepoMock
+            .Setup(r => r.SearchAsync(
+                null, 
+                null, 
+                null, 
+                null, 
+                1, 
+                10, 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((IReadOnlyList<Document>)new List<Document>(), 0));
+
+        var filter = new SearchFilterDto
+        {
+            PageNumber = -5, // Invalid, should default to 1
+            PageSize = 0     // Invalid, should default to 10
+        };
+
+        // Act
+        var result = await _documentService.SearchAsync(filter);
+
+        // Assert
+        Assert.Equal(1, result.PageNumber);
+        Assert.Equal(10, result.PageSize);
+        _documentRepoMock.Verify(r => r.SearchAsync(null, null, null, null, 1, 10, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DownloadDocumentAsync_WithValidDocument_ReturnsDocumentDownloadDto()
+    {
+        // Arrange
+        var doc = new Document("Expediente", "2023-0145", DocumentType.Degree, "usr");
+        var docId = doc.Id;
+        doc.AddNewVersion("2023-0145/2026/v1_hash999_Titulo.pdf", "hash999", 5000, "application/pdf", "usr");
+
+        _documentRepoMock
+            .Setup(r => r.GetWithDetailsAsync(docId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(doc);
+
+        var mockStream = new MemoryStream(Encoding.UTF8.GetBytes("Binary PDF"));
+        _storageServiceMock
+            .Setup(s => s.GetFileStreamAsync("2023-0145/2026/v1_hash999_Titulo.pdf", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockStream);
+
+        // Act
+        var result = await _documentService.DownloadDocumentAsync(docId);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        Assert.Equal("Titulo.pdf", result.Data.FileName);
+        Assert.Equal("application/pdf", result.Data.ContentType);
+        Assert.Equal(1, result.Data.VersionNumber);
+        Assert.NotNull(result.Data.Content);
+
+        // Audit log must be recorded
+        _auditRepoMock.Verify(a => a.AddAsync(
+            It.Is<AuditLog>(l => l.Action == AuditAction.Downloaded && l.DocumentId == docId), 
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetVersionsAsync_ExistingDocument_ReturnsOrderedVersionsList()
+    {
+        // Arrange
+        var docId = Guid.NewGuid();
+        var doc = new Document("Documento Histórico", "2023-0145", DocumentType.Transcript, "usr");
+        doc.AddNewVersion("p1", "h1", 100, "application/pdf", "usr");
+        doc.AddNewVersion("p2", "h2", 200, "application/pdf", "usr");
+
+        _documentRepoMock
+            .Setup(r => r.GetWithDetailsAsync(docId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(doc);
+
+        // Act
+        var result = await _documentService.GetVersionsAsync(docId);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        Assert.Equal(2, result.Data.Count);
+        Assert.Equal(2, result.Data[0].VersionNumber);
+        Assert.Equal(1, result.Data[1].VersionNumber);
+    }
+
+    [Fact]
+    public async Task GetVersionsAsync_DocumentNotFound_ReturnsNotFoundResult()
+    {
+        // Arrange
+        var docId = Guid.NewGuid();
+        _documentRepoMock
+            .Setup(r => r.GetWithDetailsAsync(docId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Document?)null);
+
+        // Act
+        var result = await _documentService.GetVersionsAsync(docId);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal("DOCUMENT_NOT_FOUND", result.ErrorCode);
+    }
 }

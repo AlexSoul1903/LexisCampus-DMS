@@ -186,12 +186,29 @@
   - [x] Actualizar puntero CurrentVersion en la entidad Document
   - [x] Registrar evento en AuditLog "DOCUMENT_RECTIFIED" (`AuditAction.DocumentRectified`) con motivo de cambio obligatorio
 
+### [LEX-303] Endpoints REST en DocumentsController
+- **Capa Onion**: `Presentation (Server) / Application / Persistence`
+- **Fase / Sprint**: `Fase 3: Casos de Uso`
+- **Estado**: `Done` ✅
+- **Prioridad**: `Crítica`
+- **Story Points (Fibonacci)**: `5`
+- **Asignado a**: `Backend Architect (.NET 8) — Core / API`
+- **Declaración de Historia de Usuario**:
+  > *Como Desarrollador Frontend, quiero una API REST limpia y documentada en Swagger, para poder subir, buscar, consultar versiones y descargar expedientes académicos.*
+- **Notas Técnicas & Especificaciones de Arquitectura**:
+  > *Controlador DocumentsController con [ApiController], [Route("api/[controller]")]. Búsqueda paginada con PagedResult<T>, descarga con Content-Disposition inline/attachment, historial completo de versiones con hashes, y Swagger UI documentado con esquemas y comentarios XML.*
+- **Criterios de Aceptación (Definition of Done)**:
+  - [x] `POST /api/documents/upload`: Carga multipart con metadatos y retorno 201 Created con cabecera Location
+  - [x] `GET /api/documents/search?matricula={val}&tipo={val}`: Búsqueda paginada con filtros (soporte alias español/inglés y rangos de fecha)
+  - [x] `GET /api/documents/{id}/download`: Descarga de stream binario con Content-Disposition inline o attachment
+  - [x] `GET /api/documents/{id}/versions`: Listado completo del historial de versiones y hashes criptográficos
+  - [x] Swagger UI configurado con esquemas de request/response, descripciones y comentarios XML funcionales
+
 ---
 
 ## 📋 Backlog (Próximas Historias)
 
 | ID | Título | Capa Onion | Prioridad | Estado |
 |---|---|---|---|---|
-| **LEX-303** | Caso de Uso: Búsqueda y Filtrado Paginado de Expedientes | `Application` | Alta | To Do |
-| **LEX-304** | Controladores API REST & Middleware de Excepciones Globales (RFC 7807) | `Server` | Crítica | To Do |
+| **LEX-304** | Middleware de Excepciones Globales (RFC 7807) & Manejo de Errores | `Server` | Crítica | To Do |
 | **LEX-305** | Autenticación JWT, Refresh Tokens & Políticas de Autorización | `Server / Persistence` | Crítica | To Do |
