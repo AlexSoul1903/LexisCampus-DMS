@@ -28,4 +28,46 @@ public class UserRepository : GenericRepository<User, Guid>, IUserRepository
             .Select(r => r.User)
             .FirstOrDefaultAsync(cancellationToken);
     }
+
+    public async Task<(IReadOnlyList<User> Items, int TotalCount)> SearchUsersAsync(
+        string? searchTerm,
+        string? role,
+        bool? isActive,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<User> query = _dbSet.AsNoTracking().Where(u => !u.IsDeleted);
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var term = searchTerm.Trim();
+            query = query.Where(u => u.Username.Contains(term) ||
+                                     u.Email.Contains(term) ||
+                                     u.FullName.Contains(term) ||
+                                     (u.StudentRegistration != null && u.StudentRegistration.Contains(term)) ||
+                                     (u.Department != null && u.Department.Contains(term)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(role))
+        {
+            var roleTrimmed = role.Trim();
+            query = query.Where(u => u.Role == roleTrimmed);
+        }
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(u => u.IsActive == isActive.Value);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderByDescending(u => u.CreatedAtUtc)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
 }

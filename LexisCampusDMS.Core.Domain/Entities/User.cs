@@ -66,4 +66,37 @@ public class User : AuditableEntity<Guid>
         FailedLoginAttempts = 0;
         LockoutEndUtc = null;
     }
+
+    public void UpdateProfile(string fullName, string? department, string? studentRegistration, string modifiedBy)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fullName, nameof(fullName));
+
+        FullName = fullName.Trim();
+        Department = department?.Trim();
+        StudentRegistration = studentRegistration?.Trim();
+        LastModifiedBy = modifiedBy;
+        LastModifiedAtUtc = DateTime.UtcNow;
+    }
+
+    public void ChangeRole(string newRole, string modifiedBy)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(newRole, nameof(newRole));
+
+        Role = newRole.Trim();
+        LastModifiedBy = modifiedBy;
+        LastModifiedAtUtc = DateTime.UtcNow;
+    }
+
+    public void ChangeStatus(bool isActive, bool resetLockout, string modifiedBy)
+    {
+        IsActive = isActive;
+
+        if (resetLockout)
+        {
+            ResetLockout();
+        }
+
+        LastModifiedBy = modifiedBy;
+        LastModifiedAtUtc = DateTime.UtcNow;
+    }
 }

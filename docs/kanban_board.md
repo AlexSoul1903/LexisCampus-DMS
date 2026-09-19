@@ -318,6 +318,29 @@
   - [x] Incrustar el QR en la esquina inferior del documento emitido mediante `PdfSharp`
   - [x] Prueba de legibilidad del QR con lectores de cámara estándar de smartphone y decodificación automatizada
 
+### [LEX-309] Endpoint de Registro / Alta de Usuarios y Gestión de Roles Institucionales
+- **Capa Onion**: `Domain / Persistence / Application / Server (Clean Architecture)`
+- **Fase / Sprint**: `Fase 3: Casos de Uso & Administración`
+- **Estado**: `Done` ✅
+- **Prioridad**: `Alta`
+- **Story Points (Fibonacci)**: `5`
+- **Asignado a**: `Backend Architect (.NET 8) — Core / API`
+- **Declaración de Historia de Usuario**:
+  > *Como Administrador del Sistema, quiero gestionar integralmente los usuarios institucionales (creación con contraseñas seguras, listado paginado/filtrado, actualización de perfil, asignación de roles y activación/desbloqueo), para administrar el acceso seguro al sistema LexisCampus DMS con estricto control de auditoría.*
+- **Notas Técnicas & Especificaciones de Arquitectura**:
+  > *Controlador UsersController restringido exclusivamente al rol Admin ([Authorize(Roles = "Admin")]). Hashing de contraseñas con BCrypt mediante IPasswordHasherService. Validación estricta con FluentValidation (roles institucionales permitidos: Admin, Registro, Auditor; política robusta de contraseña; unicidad de Username y Email). DTOs que omiten de forma estricta PasswordHash y tokens de seguridad. Registro obligatorio de auditoría en AuditLog para creación de usuario, cambio de rol y modificación de estado/desbloqueo de cuentas.*
+- **Criterios de Aceptación (Definition of Done)**:
+  - [x] Crear controlador administrativo `UsersController` protegido con `[Authorize(Roles = "Admin")]`
+  - [x] Endpoint `POST /api/users` para alta de usuarios institucionales con hash BCrypt y registro en `AuditLogs`
+  - [x] Endpoint `GET /api/users` con búsqueda paginada, filtrado por término, rol institucional y estado activo
+  - [x] Endpoint `GET /api/users/{id}` para consulta detallada de usuario institucional
+  - [x] Endpoint `PUT /api/users/{id}` para actualizar datos generales de perfil (`FullName`, `Department`, `StudentRegistration`)
+  - [x] Endpoint `PUT /api/users/{id}/role` para reasignar roles institucionales (`Admin`, `Registro`, `Auditor`)
+  - [x] Endpoint `PATCH /api/users/{id}/status` para activar/desactivar y desbloquear cuentas (`ResetLockout`)
+  - [x] Validaciones de unicidad de `Username` y `Email` con mensajes localizados en español
+  - [x] Exclusión rigurosa de `PasswordHash` y tokens en todos los DTOs de respuesta (`UserResponseDto`)
+  - [x] Bitácora obligatoria en `AuditLog` con acciones `Created`, `Updated` y `StatusChanged`
+
 ---
 
 ## 📋 Backlog (Próximas Historias)
@@ -325,5 +348,5 @@
 | ID | Título | Capa Onion | Prioridad | Estado |
 |---|---|---|---|---|
 | **LEX-308** | Middleware de Excepciones Globales (RFC 7807) & Manejo de Errores | `Server` | Crítica | To Do |
-| **LEX-309** | Endpoint de Registro / Alta de Usuarios y Gestión de Roles | `Server / Application` | Alta | To Do |
+
 
