@@ -21,6 +21,7 @@ public static class ServiceRegistration
         // Repositories and Unit of Work (Scoped)
         services.AddScoped(typeof(IGenericRepository<,>), typeof(GenericRepository<,>));
         services.AddScoped<IDocumentRepository, DocumentRepository>();
+        services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         return services;

@@ -223,9 +223,29 @@
 
 ---
 
+### [LEX-305] Controlador de Autenticación y Emisión de Tokens JWT
+- **Capa Onion**: `Presentation (Server) / Application / Shared / Persistence / Domain`
+- **Fase / Sprint**: `Fase 3: Casos de Uso (Autenticación y Seguridad)`
+- **Estado**: `Done` ✅
+- **Prioridad**: `Crítica`
+- **Story Points (Fibonacci)**: `5`
+- **Asignado a**: `Backend Architect (.NET 8) — Core / API`
+- **Declaración de Historia de Usuario**:
+  > *Como Usuario de Registro o Administrador, quiero autenticarme mediante POST /api/auth/login con mis credenciales institucionales, para obtener un token JWT firmado y operar en el DMS según mis roles asignados.*
+- **Notas Técnicas & Especificaciones de Arquitectura**:
+  > *Secret key firmada con HMAC-SHA256 almacenada en appsettings / UserSecrets. Entidades User y RefreshToken en Core.Domain con soporte para rotación e invalidación de tokens. Verificación criptográfica con BCrypt (work factor 11). Mitigación de fuerza bruta con bloqueo temporal automático tras 5 intentos fallidos consecutivos durante 15 minutos. Controlador AuthController documentado en Swagger con endpoints /login y /refresh-token.*
+- **Criterios de Aceptación (Definition of Done)**:
+  - [x] Crear endpoint `POST /api/auth/login` aceptando `LoginRequestDto` (Username/Email y Password)
+  - [x] Verificación criptográfica de contraseña (`BCrypt` / `IPasswordHasherService`)
+  - [x] Generar token JWT con claims (`UserId`, `Name`, `Role`, `Matrícula`/`Dept`) y tiempo de expiración (60 min)
+  - [x] Implementar endpoint `POST /api/auth/refresh-token` para renovación segura de sesión
+  - [x] Mitigación de ataques de fuerza bruta con bloqueo temporal tras 5 intentos fallidos consecutivos
+
+---
+
 ## 📋 Backlog (Próximas Historias)
 
 | ID | Título | Capa Onion | Prioridad | Estado |
 |---|---|---|---|---|
-| **LEX-305** | Middleware de Excepciones Globales (RFC 7807) & Manejo de Errores | `Server` | Crítica | To Do |
-| **LEX-306** | Generación de Tokens JWT, Refresh Tokens & Endpoint de Login | `Server / Persistence` | Crítica | To Do |
+| **LEX-306** | Middleware de Excepciones Globales (RFC 7807) & Manejo de Errores | `Server` | Crítica | To Do |
+| **LEX-307** | Endpoint de Registro / Alta de Usuarios y Gestión de Roles | `Server / Application` | Alta | To Do |

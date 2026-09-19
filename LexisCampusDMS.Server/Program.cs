@@ -1,11 +1,15 @@
 using System.Reflection;
 using System.Text;
 using LexisCampusDMS.Application;
+using LexisCampusDMS.Application.Interfaces;
 using LexisCampusDMS.Application.Options;
 using LexisCampusDMS.Infraestructure.Persistence;
+using LexisCampusDMS.Infraestructure.Persistence.Contexts;
+using LexisCampusDMS.Infraestructure.Persistence.Seed;
 using LexisCampusDMS.Infraestructure.Shared;
 using LexisCampusDMS.Server.Middlewares;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -134,5 +138,24 @@ app.UseAuthorization();
 app.UseMiddleware<AuditLogMiddleware>();
 
 app.MapControllers();
+
+// Automatic migration & institutional seed data on startup
+try
+{
+    using var scope = app.Services.CreateScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasherService>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    if (dbContext.Database.CanConnect())
+    {
+        await dbContext.Database.MigrateAsync();
+        await DatabaseSeeder.SeedInitialDataAsync(dbContext, passwordHasher, logger);
+    }
+}
+catch (Exception ex)
+{
+    app.Logger.LogWarning(ex, "Could not run database migrations/seeding at startup. Ensure SQL Server is accessible.");
+}
 
 app.Run();

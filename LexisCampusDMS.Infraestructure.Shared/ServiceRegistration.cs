@@ -36,6 +36,10 @@ public static class ServiceRegistration
         services.AddScoped<IStorageService, MinioStorageService>();
         services.AddSingleton<IHashService, Sha256HashService>();
 
+        // Register Authentication & Security Services
+        services.AddSingleton<IPasswordHasherService, BcryptPasswordHasherService>();
+        services.AddScoped<ITokenService, JwtTokenService>();
+
         return services;
     }
 }

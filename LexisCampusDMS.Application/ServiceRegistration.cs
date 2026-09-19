@@ -15,6 +15,7 @@ public static class ServiceRegistration
 
         // Application Services
         services.AddScoped<IDocumentService, DocumentService>();
+        services.AddScoped<IAuthService, AuthService>();
 
         return services;
     }
