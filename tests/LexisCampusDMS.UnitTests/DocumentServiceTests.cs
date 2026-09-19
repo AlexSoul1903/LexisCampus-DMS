@@ -958,4 +958,102 @@ public class DocumentServiceTests
         Assert.False(result.IsSuccess);
         Assert.Equal("INVALID_STUDENT_REGISTRATION", result.ErrorCode);
     }
+
+    [Fact]
+    public async Task VerifyPublicDocumentAsync_ValidSha256Hash_ReturnsAuthenticDtoWithAnonymizedMatriculaAndSeal()
+    {
+        // Arrange
+        var testHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+        var doc = new Document("Título de Grado", "2023-0001", DocumentType.Degree, "usr-test")
+        {
+            Status = DocumentStatus.Approved
+        };
+        var version = doc.AddNewVersion("path/file.pdf", testHash, 5000, "application/pdf", "usr-test");
+        version.Document = doc;
+
+        _documentRepoMock
+            .Setup(r => r.GetVersionByHashAsync(testHash, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(version);
+
+        // Act
+        var result = await _documentService.VerifyPublicDocumentAsync(testHash);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        Assert.True(result.Data.IsValid);
+        Assert.Equal("Título de Grado", result.Data.Title);
+        Assert.Equal("2023-****", result.Data.AnonymizedStudentRegistration);
+        Assert.Equal("APPROVED", result.Data.Status);
+        Assert.Equal(testHash, result.Data.FileHashSha256);
+        Assert.Contains("Carmen Valenzuela", result.Data.SigningDean);
+        Assert.StartsWith("SELLO-CERT-LEXISCAMPUS-", result.Data.InstitutionalSeal);
+        Assert.Null(result.Data.RevocationWarning);
+    }
+
+    [Fact]
+    public async Task VerifyPublicDocumentAsync_RevokedDocumentHash_ReturnsRevokedDtoWithWarningSeal()
+    {
+        // Arrange
+        var testHash = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
+        var doc = new Document("Certificado de Estudio", "2022-9876", DocumentType.StudyCertificate, "usr-test")
+        {
+            Status = DocumentStatus.Revoked,
+            ResolutionNumber = "RES-REC-2026-99",
+            RevocationReason = "Error material en asignaturas"
+        };
+        var version = doc.AddNewVersion("path/file.pdf", testHash, 3000, "application/pdf", "usr-test");
+        version.Document = doc;
+
+        _documentRepoMock
+            .Setup(r => r.GetVersionByHashAsync(testHash, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(version);
+
+        // Act
+        var result = await _documentService.VerifyPublicDocumentAsync(testHash);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        Assert.False(result.Data.IsValid);
+        Assert.Equal("REVOCADO", result.Data.Status);
+        Assert.Equal("2022-****", result.Data.AnonymizedStudentRegistration);
+        Assert.NotNull(result.Data.RevocationWarning);
+        Assert.Contains("RES-REC-2026-99", result.Data.RevocationWarning);
+    }
+
+    [Fact]
+    public async Task VerifyPublicDocumentAsync_HashNotFound_ReturnsNotFound()
+    {
+        // Arrange
+        var testHash = "non_existent_hash_1234567890";
+        _documentRepoMock
+            .Setup(r => r.GetVersionByHashAsync(testHash, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((DocumentVersion?)null);
+
+        // Act
+        var result = await _documentService.VerifyPublicDocumentAsync(testHash);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.False(result.IsSuccess);
+        Assert.Equal("DOCUMENT_NOT_FOUND", result.ErrorCode);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public async Task VerifyPublicDocumentAsync_EmptyOrNullInput_ReturnsValidationError(string? invalidInput)
+    {
+        // Act
+        var result = await _documentService.VerifyPublicDocumentAsync(invalidInput!);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.False(result.IsSuccess);
+        Assert.Equal("INVALID_INPUT", result.ErrorCode);
+    }
 }

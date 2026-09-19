@@ -46,4 +46,8 @@ public interface IDocumentService
     Task<Result<StudentDossierDownloadDto>> DownloadStudentDossierZipAsync(
         string studentRegistration, 
         CancellationToken cancellationToken = default);
+
+    Task<Result<PublicVerificationResponseDto>> VerifyPublicDocumentAsync(
+        string hashOrToken, 
+        CancellationToken cancellationToken = default);
 }

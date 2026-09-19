@@ -19,4 +19,5 @@ public interface IDocumentRepository : IGenericRepository<Document, Guid>
         int pageNumber,
         int pageSize,
         CancellationToken cancellationToken = default);
+    Task<DocumentVersion?> GetVersionByHashAsync(string fileHashSha256, CancellationToken cancellationToken = default);
 }

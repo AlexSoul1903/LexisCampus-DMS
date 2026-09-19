@@ -120,4 +120,18 @@ public class DocumentRepository : GenericRepository<Document, Guid>, IDocumentRe
 
         return (items, totalCount);
     }
+
+    public async Task<DocumentVersion?> GetVersionByHashAsync(
+        string fileHashSha256, 
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileHashSha256, nameof(fileHashSha256));
+
+        var normalizedHash = fileHashSha256.Trim().ToLowerInvariant();
+
+        return await _dbContext.DocumentVersions
+            .AsNoTracking()
+            .Include(v => v.Document)
+            .FirstOrDefaultAsync(v => v.FileHashSha256.ToLower() == normalizedHash, cancellationToken);
+    }
 }

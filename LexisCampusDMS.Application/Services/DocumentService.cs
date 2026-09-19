@@ -825,6 +825,101 @@ public class DocumentService : IDocumentService
             $"Expediente estudiantil descargado exitosamente con {manifest.TotalDocuments} documento(s) vigente(s).");
     }
 
+    public async Task<Result<PublicVerificationResponseDto>> VerifyPublicDocumentAsync(
+        string hashOrToken, 
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(hashOrToken))
+        {
+            return Result<PublicVerificationResponseDto>.Failure(
+                "El hash o token del documento es requerido.",
+                "INVALID_INPUT");
+        }
+
+        var normalizedInput = hashOrToken.Trim();
+        Document? document = null;
+        DocumentVersion? version = null;
+
+        // 1. First attempt: lookup by SHA-256 file hash
+        version = await _documentRepository.GetVersionByHashAsync(normalizedInput, cancellationToken);
+        if (version?.Document is not null)
+        {
+            document = version.Document;
+        }
+        else if (Guid.TryParse(normalizedInput, out var documentId))
+        {
+            // 2. Secondary attempt: lookup by unique Document ID token
+            document = await _documentRepository.GetWithDetailsAsync(documentId, cancellationToken);
+            version = document?.Versions.OrderByDescending(v => v.VersionNumber).FirstOrDefault();
+        }
+
+        if (document is null)
+        {
+            _logger.LogInformation("Public document verification failed: hash/token '{Token}' not found", normalizedInput);
+            return Result<PublicVerificationResponseDto>.Failure(
+                "No se encontró ningún documento institucional correspondiente al hash o token proporcionado.",
+                "DOCUMENT_NOT_FOUND");
+        }
+
+        bool isRevoked = document.Status == DocumentStatus.Revoked;
+        bool isValid = !isRevoked;
+
+        var hashPrefix = !string.IsNullOrWhiteSpace(version?.FileHashSha256) && version.FileHashSha256.Length >= 12
+            ? version.FileHashSha256[..12].ToUpperInvariant()
+            : "DIGITAL";
+
+        var institutionalSeal = $"SELLO-CERT-LEXISCAMPUS-{hashPrefix}-{document.CreatedAtUtc:yyyyMMdd}";
+        const string signingDean = "Dra. Carmen Valenzuela - Decana de Registro y Asuntos Académicos";
+
+        var responseDto = new PublicVerificationResponseDto
+        {
+            IsValid = isValid,
+            Title = document.Title,
+            AnonymizedStudentRegistration = AnonymizeStudentRegistration(document.StudentRegistration),
+            IssueDateUtc = document.CreatedAtUtc,
+            SigningDean = signingDean,
+            InstitutionalSeal = institutionalSeal,
+            DocumentType = document.DocumentType.ToString(),
+            Status = isRevoked ? "REVOCADO" : document.Status.ToString().ToUpperInvariant(),
+            FileHashSha256 = version?.FileHashSha256 ?? string.Empty,
+            Version = version?.VersionNumber ?? document.CurrentVersion,
+            RevocationWarning = isRevoked
+                ? $"⚠️ DOCUMENTO REVOCADO: Este documento académico ha sido ANULADO formalmente mediante Resolución N° '{document.ResolutionNumber ?? "N/A"}'. Carece de toda validez legal o académica institucional."
+                : null
+        };
+
+        _logger.LogInformation("Public verification completed for '{Token}'. Valid: {IsValid}, Status: {Status}",
+            normalizedInput, isValid, responseDto.Status);
+
+        return Result<PublicVerificationResponseDto>.Success(
+            responseDto,
+            isValid
+                ? "Documento institucional verificado y auténtico."
+                : "Atención: El documento consultado se encuentra formalmente REVOCADO.");
+    }
+
+    private static string AnonymizeStudentRegistration(string? registration)
+    {
+        if (string.IsNullOrWhiteSpace(registration))
+        {
+            return "****";
+        }
+
+        var trimmed = registration.Trim();
+        var parts = trimmed.Split('-');
+        if (parts.Length == 2)
+        {
+            return $"{parts[0]}-" + new string('*', Math.Max(4, parts[1].Length));
+        }
+
+        if (trimmed.Length <= 4)
+        {
+            return new string('*', trimmed.Length);
+        }
+
+        return trimmed[..2] + new string('*', trimmed.Length - 4) + trimmed[^2..];
+    }
+
     private static string GetFileExtension(string? mimeType)
     {
         return mimeType?.ToLowerInvariant() switch

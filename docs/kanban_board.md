@@ -282,10 +282,28 @@
 
 ---
 
+### [LEX-501] Endpoint Público de Validación de Autenticidad
+- **Capa Onion**: `API (Capa Externa / Presentation) / Application / Persistence`
+- **Fase / Sprint**: `Fase 5: Módulo de Certificación & Seguridad`
+- **Estado**: `Done` ✅
+- **Prioridad**: `Alta`
+- **Story Points (Fibonacci)**: `3`
+- **Asignado a**: `Security & Cert Specialist — Crypto / QR`
+- **Declaración de Historia de Usuario**:
+  > *Como Empleador o Institución Externa, quiero consultar un endpoint público enviando el hash o token del documento, para verificar si es legítimo, qué decano lo firmó y en qué fecha fue emitido.*
+- **Notas Técnicas & Especificaciones de Arquitectura**:
+  > *Controlador PublicVerificationController con caché HTTP en memoria (MemoryCache) para hashes verificados y Rate Limiting particionado por IP (FixedWindowLimiter: 30 req/min) para mitigar fuerza bruta y scraping. DTO con campos en español/camelCase (Valido, Titulo, MatriculaAnonimizada, FechaEmision, DecanoFirmante, SelloInstitucional).*
+- **Criterios de Aceptación (Definition of Done)**:
+  - [x] Crear endpoint público `GET /api/public/verify/{hashOrToken}` `[AllowAnonymous]`
+  - [x] Validar correspondencia contra `DocumentVersion.FileHashSha256` (con soporte para identificador único/token)
+  - [x] Retornar DTO de verificación: Valido (`bool`), Titulo, Matrícula anonimizada (`2023-****`), FechaEmision, DecanoFirmante, SelloInstitucional
+  - [x] Rate limiting en el endpoint para mitigar ataques de fuerza bruta o scraping
+
+---
+
 ## 📋 Backlog (Próximas Historias)
 
 | ID | Título | Capa Onion | Prioridad | Estado |
 |---|---|---|---|---|
 | **LEX-308** | Middleware de Excepciones Globales (RFC 7807) & Manejo de Errores | `Server` | Crítica | To Do |
 | **LEX-309** | Endpoint de Registro / Alta de Usuarios y Gestión de Roles | `Server / Application` | Alta | To Do |
-

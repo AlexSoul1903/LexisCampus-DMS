@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text;
+using System.Threading.RateLimiting;
 using LexisCampusDMS.Application;
 using LexisCampusDMS.Application.Interfaces;
 using LexisCampusDMS.Application.Options;
@@ -9,6 +10,7 @@ using LexisCampusDMS.Infraestructure.Persistence.Seed;
 using LexisCampusDMS.Infraestructure.Shared;
 using LexisCampusDMS.Server.Middlewares;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -23,6 +25,30 @@ builder.Services.AddSharedInfrastructure(builder.Configuration);
 // Presentation / Server dependencies
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<LexisCampusDMS.Application.Interfaces.ICurrentUserService, LexisCampusDMS.Server.Services.CurrentUserService>();
+
+// In-Memory Cache for fast verification & performance
+builder.Services.AddMemoryCache();
+
+// Rate Limiting (mitigation against scraping and brute-force attacks on public endpoints)
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("PublicVerificationRateLimit", httpContext =>
+    {
+        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString()
+            ?? httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault()
+            ?? "anonymous_client";
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            clientIp,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30, // 30 requests per minute per IP
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            });
+    });
+});
 
 // JWT Authentication Configuration
 var jwtSection = builder.Configuration.GetSection(JwtOptions.SectionName);
@@ -136,6 +162,9 @@ app.UseAuthorization();
 
 // AuditLogMiddleware: Captures real IP (X-Forwarded-For) and automatically audits document operations
 app.UseMiddleware<AuditLogMiddleware>();
+
+// Rate Limiting middleware for public endpoints
+app.UseRateLimiter();
 
 app.MapControllers();
 
