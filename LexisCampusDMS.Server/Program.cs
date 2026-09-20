@@ -176,11 +176,8 @@ try
     var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasherService>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
-    if (dbContext.Database.CanConnect())
-    {
-        await dbContext.Database.MigrateAsync();
-        await DatabaseSeeder.SeedInitialDataAsync(dbContext, passwordHasher, logger);
-    }
+    await dbContext.Database.MigrateAsync();
+    await DatabaseSeeder.SeedInitialDataAsync(dbContext, passwordHasher, logger);
 }
 catch (Exception ex)
 {
