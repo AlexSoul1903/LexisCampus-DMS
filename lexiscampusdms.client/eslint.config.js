@@ -17,5 +17,14 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // Las vistas cargan datos al montarse o al cambiar sus parámetros (patrón fetch-on-effect
+      // sin librería de caché). Ese flujo marca `loading` de forma síncrona dentro del efecto.
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
+  {
+    files: ['vite.config.js'],
+    languageOptions: { globals: globals.node },
   },
 ])

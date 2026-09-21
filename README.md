@@ -13,7 +13,7 @@ El proyecto implementa una arquitectura concéntrica desacoplada:
 3. **`LexisCampusDMS.Infraestructure.Persistence`**: `ApplicationDbContext`, configuraciones Fluent API, índices non-clustered, migraciones de Entity Framework Core 8 e implementaciones de repositorio.
 4. **`LexisCampusDMS.Infraestructure.Shared`**: Proveedores externos de almacenamiento (MinIO S3 / Local), cálculo criptográfico de hashes (SHA-256) y servicios transversales.
 5. **`LexisCampusDMS.Server`**: API Web RESTful en ASP.NET Core (.NET 8), middleware global de manejo de excepciones y documentación Swagger / OpenAPI.
-6. **`lexiscampusdms.client`**: Frontend SPA en React / TypeScript.
+6. **`lexiscampusdms.client`**: Frontend SPA en React + Vite (ver [lexiscampusdms.client/README.md](lexiscampusdms.client/README.md)).
 
 ---
 
@@ -96,3 +96,12 @@ dotnet ef database update --project LexisCampusDMS.Infraestructure.Persistence -
 dotnet run --project LexisCampusDMS.Server
 ```
 * **Swagger UI**: [https://localhost:7147/swagger](https://localhost:7147/swagger) o [http://localhost:5068/swagger](http://localhost:5068/swagger)
+
+### 3. Iniciar el Frontend (React + Vite)
+```bash
+cd lexiscampusdms.client
+npm install
+npm run dev
+```
+* **Aplicación web**: [https://localhost:5173](https://localhost:5173) (las llamadas a `/api` se redirigen al backend).
+* **Portal público de verificación**: [https://localhost:5173/verify](https://localhost:5173/verify)
