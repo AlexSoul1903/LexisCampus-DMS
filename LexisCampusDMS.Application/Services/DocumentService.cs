@@ -266,12 +266,16 @@ public class DocumentService : IDocumentService
             var currentUserIp = _currentUserService.IpAddress;
 
             // Inmutable version addition: prior versions are preserved untouched
-            document.AddNewVersion(
+            var newVersion = document.AddNewVersion(
                 persistedStoragePath,
                 fileHashSha256,
                 request.FileSizeBytes,
                 request.ContentType,
                 currentUserId);
+
+            // The version carries a client-generated Guid key; register it explicitly as Added so EF Core
+            // does not infer an UPDATE of a non-existent row (DbUpdateConcurrencyException).
+            await _unitOfWork.Repository<DocumentVersion, Guid>().AddAsync(newVersion, cancellationToken);
 
             // AuditLog with DocumentRectified action and mandatory change reason
             var auditLog = new AuditLog(

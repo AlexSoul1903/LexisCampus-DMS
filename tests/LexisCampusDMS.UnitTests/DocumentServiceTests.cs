@@ -23,6 +23,7 @@ public class DocumentServiceTests
     private readonly Mock<IHashService> _hashServiceMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
     private readonly Mock<IGenericRepository<AuditLog, Guid>> _auditRepoMock = new();
+    private readonly Mock<IGenericRepository<DocumentVersion, Guid>> _versionRepoMock = new();
     private readonly UploadDocumentRequestDtoValidator _validator = new();
     private readonly RectifyDocumentRequestDtoValidator _rectifyValidator = new();
 
@@ -31,6 +32,7 @@ public class DocumentServiceTests
     public DocumentServiceTests()
     {
         _unitOfWorkMock.Setup(u => u.Repository<AuditLog, Guid>()).Returns(_auditRepoMock.Object);
+        _unitOfWorkMock.Setup(u => u.Repository<DocumentVersion, Guid>()).Returns(_versionRepoMock.Object);
 
         _currentUserMock.Setup(u => u.UserId).Returns("usr-12345");
         _currentUserMock.Setup(u => u.IpAddress).Returns("192.168.1.100");
@@ -290,6 +292,11 @@ public class DocumentServiceTests
         // Verify transactional persistence
         _unitOfWorkMock.Verify(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWorkMock.Verify(u => u.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+
+        // Verify the new version is explicitly registered as a new entity
+        _versionRepoMock.Verify(v => v.AddAsync(
+            It.Is<DocumentVersion>(dv => dv.VersionNumber == 2 && dv.FileHashSha256 == newHash),
+            It.IsAny<CancellationToken>()), Times.Once);
 
         // Verify AuditLog contains DocumentRectified and the change reason
         _auditRepoMock.Verify(a => a.AddAsync(
