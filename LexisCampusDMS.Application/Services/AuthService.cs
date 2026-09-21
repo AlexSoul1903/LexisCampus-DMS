@@ -87,6 +87,8 @@ public class AuthService : IAuthService
         if (!isPasswordValid)
         {
             user.RecordFailedLogin();
+            // The user was loaded with AsNoTracking (generic FindAsync); attach it so the counter persists.
+            _unitOfWork.Repository<User, Guid>().Update(user);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             if (user.IsLockedOut())
@@ -110,6 +112,7 @@ public class AuthService : IAuthService
 
         // 4. Successful login: reset failed attempts counter
         user.ResetLockout();
+        _unitOfWork.Repository<User, Guid>().Update(user);
 
         // 5. Generate Access Token & Refresh Token
         var accessToken = _tokenService.GenerateAccessToken(user);
