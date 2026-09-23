@@ -365,4 +365,142 @@ public class UserServiceTests
 
         _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task ChangeUserStatusAsync_WhenDeactivatingRootAdmin_ReturnsCannotDeactivateRootAdmin()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var rootAdmin = new User("admin", "admin@lexiscampus.edu", "hash", "Admin", "Admin")
+        {
+            Id = userId,
+            IsActive = true
+        };
+
+        _userGenericRepoMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(rootAdmin);
+
+        var request = new ChangeUserStatusRequestDto { IsActive = false };
+
+        // Act
+        var result = await _userService.ChangeUserStatusAsync(userId, request);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal("CANNOT_DEACTIVATE_ROOT_ADMIN", result.ErrorCode);
+        Assert.True(rootAdmin.IsActive);
+    }
+
+    [Fact]
+    public async Task ChangeUserStatusAsync_WhenDeactivatingSelf_ReturnsCannotDeactivateSelf()
+    {
+        // Arrange
+        var selfUserId = Guid.NewGuid();
+        var selfUser = new User("other_admin", "other_admin@lexiscampus.edu", "hash", "Other Admin", "Admin")
+        {
+            Id = selfUserId,
+            IsActive = true
+        };
+
+        _currentUserServiceMock.Setup(c => c.UserId).Returns(selfUserId.ToString());
+        _currentUserServiceMock.Setup(c => c.UserName).Returns("other_admin");
+
+        _userGenericRepoMock.Setup(r => r.GetByIdAsync(selfUserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(selfUser);
+
+        var request = new ChangeUserStatusRequestDto { IsActive = false };
+
+        // Act
+        var result = await _userService.ChangeUserStatusAsync(selfUserId, request);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal("CANNOT_DEACTIVATE_SELF", result.ErrorCode);
+        Assert.True(selfUser.IsActive);
+    }
+
+    [Fact]
+    public async Task ChangeUserStatusAsync_WhenDeactivatingLastActiveAdmin_ReturnsLastActiveAdminError()
+    {
+        // Arrange
+        var adminId = Guid.NewGuid();
+        var lastAdmin = new User("secondary_admin", "sec@lexiscampus.edu", "hash", "Sec Admin", "Admin")
+        {
+            Id = adminId,
+            IsActive = true
+        };
+
+        _currentUserServiceMock.Setup(c => c.UserId).Returns(Guid.NewGuid().ToString());
+        _currentUserServiceMock.Setup(c => c.UserName).Returns("some_operator");
+
+        _userGenericRepoMock.Setup(r => r.GetByIdAsync(adminId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(lastAdmin);
+
+        _userGenericRepoMock.Setup(r => r.ExistsAsync(It.IsAny<Expression<Func<User, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false); // No other active admin
+
+        var request = new ChangeUserStatusRequestDto { IsActive = false };
+
+        // Act
+        var result = await _userService.ChangeUserStatusAsync(adminId, request);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal("LAST_ACTIVE_ADMIN", result.ErrorCode);
+        Assert.True(lastAdmin.IsActive);
+    }
+
+    [Fact]
+    public async Task ChangeUserRoleAsync_WhenDemotingRootAdmin_ReturnsCannotDemoteRootAdmin()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var rootAdmin = new User("admin", "admin@lexiscampus.edu", "hash", "Admin", "Admin")
+        {
+            Id = userId
+        };
+
+        _userGenericRepoMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(rootAdmin);
+
+        var request = new ChangeUserRoleRequestDto { Role = "Registro" };
+
+        // Act
+        var result = await _userService.ChangeUserRoleAsync(userId, request);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal("CANNOT_DEMOTE_ROOT_ADMIN", result.ErrorCode);
+        Assert.Equal("Admin", rootAdmin.Role);
+    }
+
+    [Fact]
+    public async Task ChangeUserRoleAsync_WhenDemotingLastActiveAdmin_ReturnsLastActiveAdminError()
+    {
+        // Arrange
+        var adminId = Guid.NewGuid();
+        var lastAdmin = new User("admin2", "admin2@lexiscampus.edu", "hash", "Admin Two", "Admin")
+        {
+            Id = adminId
+        };
+
+        _currentUserServiceMock.Setup(c => c.UserId).Returns(Guid.NewGuid().ToString());
+        _currentUserServiceMock.Setup(c => c.UserName).Returns("operator");
+
+        _userGenericRepoMock.Setup(r => r.GetByIdAsync(adminId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(lastAdmin);
+
+        _userGenericRepoMock.Setup(r => r.ExistsAsync(It.IsAny<Expression<Func<User, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false); // No other active admin
+
+        var request = new ChangeUserRoleRequestDto { Role = "Auditor" };
+
+        // Act
+        var result = await _userService.ChangeUserRoleAsync(adminId, request);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal("LAST_ACTIVE_ADMIN", result.ErrorCode);
+        Assert.Equal("Admin", lastAdmin.Role);
+    }
 }

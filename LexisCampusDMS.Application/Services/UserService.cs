@@ -238,6 +238,42 @@ public class UserService : IUserService
         var previousRole = user.Role;
         var actor = _currentUserService.UserName ?? "Admin";
 
+        // Business rules to protect admin integrity:
+        var isDemotingAdmin = previousRole.Equals(UserRoles.Admin, StringComparison.OrdinalIgnoreCase)
+            && !normalizedRole.Equals(UserRoles.Admin, StringComparison.OrdinalIgnoreCase);
+
+        if (isDemotingAdmin)
+        {
+            if (user.Username.Equals("admin", StringComparison.OrdinalIgnoreCase))
+            {
+                return Result<UserResponseDto>.Failure(
+                    "No es posible revocar el rol de administrador a la cuenta principal del sistema.",
+                    "CANNOT_DEMOTE_ROOT_ADMIN");
+            }
+
+            var isSelf = (Guid.TryParse(_currentUserService.UserId, out var currentGuid) && currentGuid == user.Id)
+                || (!string.IsNullOrWhiteSpace(_currentUserService.UserName) && string.Equals(_currentUserService.UserName, user.Username, StringComparison.OrdinalIgnoreCase))
+                || (!string.IsNullOrWhiteSpace(_currentUserService.UserId) && string.Equals(_currentUserService.UserId, user.Id.ToString(), StringComparison.OrdinalIgnoreCase));
+
+            if (isSelf)
+            {
+                return Result<UserResponseDto>.Failure(
+                    "No puedes revocar tu propio rol de administrador.",
+                    "CANNOT_DEMOTE_SELF");
+            }
+
+            var hasOtherActiveAdmin = await _unitOfWork.Repository<User, Guid>().ExistsAsync(
+                u => u.Id != id && u.Role == UserRoles.Admin && u.IsActive && !u.IsDeleted,
+                cancellationToken);
+
+            if (!hasOtherActiveAdmin)
+            {
+                return Result<UserResponseDto>.Failure(
+                    "No es posible revocar el rol al único administrador activo del sistema.",
+                    "LAST_ACTIVE_ADMIN");
+            }
+        }
+
         user.ChangeRole(normalizedRole, actor);
 
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
@@ -283,6 +319,43 @@ public class UserService : IUserService
         }
 
         var actor = _currentUserService.UserName ?? "Admin";
+
+        // Business rules to protect admin integrity:
+        if (!request.IsActive)
+        {
+            if (user.Username.Equals("admin", StringComparison.OrdinalIgnoreCase))
+            {
+                return Result<UserResponseDto>.Failure(
+                    "No es posible desactivar la cuenta de administrador principal del sistema.",
+                    "CANNOT_DEACTIVATE_ROOT_ADMIN");
+            }
+
+            var isSelf = (Guid.TryParse(_currentUserService.UserId, out var currentGuid) && currentGuid == user.Id)
+                || (!string.IsNullOrWhiteSpace(_currentUserService.UserName) && string.Equals(_currentUserService.UserName, user.Username, StringComparison.OrdinalIgnoreCase))
+                || (!string.IsNullOrWhiteSpace(_currentUserService.UserId) && string.Equals(_currentUserService.UserId, user.Id.ToString(), StringComparison.OrdinalIgnoreCase));
+
+            if (isSelf)
+            {
+                return Result<UserResponseDto>.Failure(
+                    "No puedes desactivar tu propia cuenta de usuario.",
+                    "CANNOT_DEACTIVATE_SELF");
+            }
+
+            if (user.Role.Equals(UserRoles.Admin, StringComparison.OrdinalIgnoreCase))
+            {
+                var hasOtherActiveAdmin = await _unitOfWork.Repository<User, Guid>().ExistsAsync(
+                    u => u.Id != id && u.Role == UserRoles.Admin && u.IsActive && !u.IsDeleted,
+                    cancellationToken);
+
+                if (!hasOtherActiveAdmin)
+                {
+                    return Result<UserResponseDto>.Failure(
+                        "No es posible desactivar al único administrador activo del sistema.",
+                        "LAST_ACTIVE_ADMIN");
+                }
+            }
+        }
+
         user.ChangeStatus(request.IsActive, request.ResetLockout, actor);
 
         await _unitOfWork.BeginTransactionAsync(cancellationToken);

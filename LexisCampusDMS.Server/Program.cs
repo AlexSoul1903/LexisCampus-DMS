@@ -10,6 +10,7 @@ using LexisCampusDMS.Infraestructure.Persistence.Seed;
 using LexisCampusDMS.Infraestructure.Shared;
 using LexisCampusDMS.Server.Middlewares;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -28,6 +29,25 @@ builder.Services.AddScoped<LexisCampusDMS.Application.Interfaces.ICurrentUserSer
 
 // In-Memory Cache for fast verification & performance
 builder.Services.AddMemoryCache();
+
+// Forwarded headers for reverse proxy (Nginx / Docker)
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+// CORS Configuration for Docker & local development
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("DefaultCorsPolicy", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
 
 // Rate Limiting (mitigation against scraping and brute-force attacks on public endpoints)
 builder.Services.AddRateLimiter(options =>
@@ -138,6 +158,9 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+// Forwarded Headers must run before other middlewares for correct client IP and scheme detection
+app.UseForwardedHeaders();
+
 // HTTP Security Headers Middleware
 app.Use(async (context, next) =>
 {
@@ -155,7 +178,12 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+app.UseCors("DefaultCorsPolicy");
+
+if (builder.Configuration.GetValue<bool>("EnableHttpsRedirection", false))
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -168,20 +196,32 @@ app.UseRateLimiter();
 
 app.MapControllers();
 
-// Automatic migration & institutional seed data on startup
-try
+// Automatic migration & institutional seed data on startup with resilient retry
+const int maxRetries = 5;
+for (var attempt = 1; attempt <= maxRetries; attempt++)
 {
-    using var scope = app.Services.CreateScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasherService>();
-    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        using var scope = app.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasherService>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
-    await dbContext.Database.MigrateAsync();
-    await DatabaseSeeder.SeedInitialDataAsync(dbContext, passwordHasher, logger);
-}
-catch (Exception ex)
-{
-    app.Logger.LogWarning(ex, "Could not run database migrations/seeding at startup. Ensure SQL Server is accessible.");
+        app.Logger.LogInformation("Applying database migrations and institutional seeding (attempt {Attempt}/{MaxRetries})...", attempt, maxRetries);
+        await dbContext.Database.MigrateAsync();
+        await DatabaseSeeder.SeedInitialDataAsync(dbContext, passwordHasher, logger);
+        app.Logger.LogInformation("Database migrations and seeding completed successfully.");
+        break;
+    }
+    catch (Exception ex) when (attempt < maxRetries)
+    {
+        app.Logger.LogWarning(ex, "Database connection not ready on startup (attempt {Attempt}/{MaxRetries}). Retrying in 3 seconds...", attempt, maxRetries);
+        await Task.Delay(TimeSpan.FromSeconds(3));
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "Could not run database migrations/seeding at startup after {MaxRetries} attempts. Ensure SQL Server is accessible.", maxRetries);
+    }
 }
 
 app.Run();

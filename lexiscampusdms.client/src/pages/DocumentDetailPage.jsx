@@ -223,7 +223,7 @@ export default function DocumentDetailPage() {
                             />
                             <div className="row-wrap" style={{ justifyContent: 'center' }}>
                                 <Button size="sm" icon={Copy} onClick={copyLink}>Copiar enlace</Button>
-                                <a className="btn btn-sm btn-soft" href={`/verify/${doc.currentFileHash}`} target="_blank" rel="noopener">
+                                <a className="btn btn-sm btn-soft" href={`/verify/${doc.currentFileHash}`} target="_blank" rel="noreferrer noopener">
                                     <ExternalLink />Abrir portal
                                 </a>
                             </div>

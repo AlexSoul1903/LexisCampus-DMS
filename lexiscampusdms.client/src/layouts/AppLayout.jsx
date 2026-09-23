@@ -81,7 +81,7 @@ export default function AppLayout() {
                                 <div className="nav-section-title">{section.title}</div>
                                 {items.map(item =>
                                     item.external ? (
-                                        <a key={item.to} href={item.to} target="_blank" rel="noopener" className="nav-link">
+                                        <a key={item.to} href={item.to} target="_blank" rel="noreferrer noopener" className="nav-link">
                                             <item.icon aria-hidden />
                                             {item.label}
                                         </a>

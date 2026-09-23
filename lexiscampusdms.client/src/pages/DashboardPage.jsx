@@ -227,6 +227,6 @@ function QuickAction({ to, external, icon: Icon, title, text }) {
     );
     const props = { className: 'card card-body', style: { display: 'block', color: 'inherit', textDecoration: 'none' } };
     return external
-        ? <a href={to} target="_blank" rel="noopener" {...props}>{content}</a>
+        ? <a href={to} target="_blank" rel="noreferrer noopener" {...props}>{content}</a>
         : <Link to={to} {...props}>{content}</Link>;
 }

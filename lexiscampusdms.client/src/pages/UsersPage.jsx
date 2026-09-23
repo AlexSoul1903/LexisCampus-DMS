@@ -204,6 +204,8 @@ function UserRowMenu({ user, isSelf, onView, onEdit, onRole, onToggle }) {
         </button>
     );
 
+    const isRootAdmin = user.username?.toLowerCase() === 'admin';
+
     return (
         <div ref={ref} style={{ position: 'relative' }}>
             <IconButton icon={MoreHorizontal} label="Más acciones" onClick={() => setOpen(o => !o)} aria-expanded={open} />
@@ -211,8 +213,8 @@ function UserRowMenu({ user, isSelf, onView, onEdit, onRole, onToggle }) {
                 <div className="dropdown" style={{ width: 210 }} role="menu">
                     {item(Eye, 'Ver ficha', onView)}
                     {item(UserRoundPen, 'Editar datos', onEdit)}
-                    {!isSelf && item(ShieldUser, 'Cambiar rol', onRole)}
-                    {!isSelf && item(user.isActive ? UserX : UserCheck, user.isActive ? 'Desactivar' : 'Activar', onToggle, user.isActive ? 'danger' : '')}
+                    {!isSelf && !isRootAdmin && item(ShieldUser, 'Cambiar rol', onRole)}
+                    {!isSelf && (!isRootAdmin || !user.isActive) && item(user.isActive ? UserX : UserCheck, user.isActive ? 'Desactivar' : 'Activar', onToggle, user.isActive ? 'danger' : '')}
                 </div>
             )}
         </div>

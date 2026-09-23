@@ -288,8 +288,10 @@ public class DocumentsController : ControllerBase
             return NotFound(result);
         }
 
-        var disposition = inline ? "inline" : "attachment";
-        Response.Headers.Append("Content-Disposition", $"{disposition}; filename=\"{result.Data!.FileName}\"");
+        var fileName = string.IsNullOrWhiteSpace(result.Data!.FileName) ? "document" : result.Data.FileName;
+        var contentDisposition = new Microsoft.Net.Http.Headers.ContentDispositionHeaderValue(inline ? "inline" : "attachment");
+        contentDisposition.SetHttpFileName(fileName);
+        Response.Headers[Microsoft.Net.Http.Headers.HeaderNames.ContentDisposition] = contentDisposition.ToString();
 
         return File(result.Data.Content, result.Data.ContentType, enableRangeProcessing: true);
     }

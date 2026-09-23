@@ -52,10 +52,10 @@ function resolveHttpsConfig(useHttps) {
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), '');
 
-    // Destino del backend ASP.NET Core. Por defecto el perfil "http" de launchSettings.json.
+    // Destino del backend ASP.NET Core. Por defecto el perfil "https" (puerto 7081) de launchSettings.json.
     // Visual Studio inyecta ASPNETCORE_HTTPS_PORT cuando se ejecuta con el perfil HTTPS.
     const apiTarget = env.VITE_API_TARGET
-        || (env.ASPNETCORE_HTTPS_PORT ? `https://localhost:${env.ASPNETCORE_HTTPS_PORT}` : 'http://localhost:5078');
+        || (env.ASPNETCORE_HTTPS_PORT ? `https://localhost:${env.ASPNETCORE_HTTPS_PORT}` : 'https://localhost:7081');
 
     return {
         plugins: [plugin()],
