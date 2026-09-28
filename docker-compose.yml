@@ -25,29 +25,33 @@ services:
       - lexiscampus-network
 
   # ============================================================================
-  # MinIO (S3 Compatible Object Storage for Documents & Versions)
+  # SeaweedFS (S3 Compatible Object Storage for Documents & Versions)
+  # ----------------------------------------------------------------------------
+  # Replaces MinIO: the MinIO community images were archived and are no longer
+  # published (quay.io and Docker Hub return 401/404). SeaweedFS exposes the same
+  # S3 API, so the application code and the MinIO .NET SDK client stay unchanged.
+  # The service keeps the "minio" network alias for backward compatibility.
   # ============================================================================
-  minio:
-    image: quay.io/minio/minio:latest
-    container_name: lexiscampus-minio
+  storage:
+    image: chrislusf/seaweedfs:latest
+    container_name: lexiscampus-storage
     restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-admin}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-Admin@LexisCampus}
+    command: server -s3 -dir=/data -master.volumeSizeLimitMB=1024
     ports:
-      - "${MINIO_PORT:-9000}:9000" # MinIO S3 API
-      - "${MINIO_CONSOLE_PORT:-9001}:9001" # MinIO Web Management Console
+      - "${MINIO_PORT:-9000}:8333" # S3 API
+      - "${MINIO_CONSOLE_PORT:-9001}:8888" # Filer web console
     volumes:
-      - minio_data:/data
+      - storage_data:/data
     healthcheck:
-      test: [ "CMD", "mc", "ready", "local" ]
+      test: [ "CMD", "wget", "-q", "--spider", "http://127.0.0.1:8333" ]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 5s
+      retries: 10
+      start_period: 15s
     networks:
-      - lexiscampus-network
+      lexiscampus-network:
+        aliases:
+          - minio
 
   # ============================================================================
   # Backend (.NET 8 Web API - Onion Architecture)
@@ -62,7 +66,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=LexisCampusDMS;User Id=sa;Password=${MSSQL_SA_PASSWORD:-LexisCampus@Pass19};TrustServerCertificate=True;MultipleActiveResultSets=true;
-      - Minio__Endpoint=minio:9000
+      - Minio__Endpoint=storage:8333
       - Minio__AccessKey=${MINIO_ROOT_USER:-admin}
       - Minio__SecretKey=${MINIO_ROOT_PASSWORD:-Admin@LexisCampus}
       - Minio__BucketName=${MINIO_DEFAULT_BUCKET:-lexiscampus-docs}
@@ -76,7 +80,7 @@ services:
     depends_on:
       sqlserver:
         condition: service_healthy
-      minio:
+      storage:
         condition: service_healthy
     networks:
       - lexiscampus-network
@@ -103,7 +107,7 @@ services:
 volumes:
   mssql_data:
     driver: local
-  minio_data:
+  storage_data:
     driver: local
 
 networks:
